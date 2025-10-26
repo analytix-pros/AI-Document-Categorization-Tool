@@ -3,7 +3,7 @@ import psutil
 import socket
 import json
 import time
-from utils_uuid import *
+from utils.utils_uuid import derive_uuid
 
 
 def get_hostname():

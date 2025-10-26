@@ -1,3 +1,4 @@
+# utils/utils_uuid.py
 import uuid
 import datetime
 
@@ -51,13 +52,3 @@ def derive_uuid(input_string, namespace=uuid.NAMESPACE_DNS):
     
     uuid_from_string = uuid.uuid5(namespace, input_string)
     return str(uuid_from_string)
-
-# Example usage
-# test_string = "abc123"
-# uuid_str = generate_uuid_from_string(test_string)
-# print(f"String: {test_string} -> UUID: {uuid_str}")
-
-examples = ['Camerons-MacBook-Pro.localFILED', 'Camerons-MacBook-Pro.localCERTIFIED', 'Camerons-MacBook-Pro.localRECORDED', 'Camerons-MacBook-Pro.localEXEMPLIFIED', 'Camerons-MacBook-Pro.localSERVED']
-
-for i in examples:
-    print(f"{i}: {derive_uuid(i)}")

@@ -1,13 +1,22 @@
-# initial_setup/db_models.py
+# database/db_models.py
+"""Database models for the AI Document Categorization Tool."""
 import sqlite3
-from config.config import *
-from ..utils.utils_uuid import derive_uuid, generate_uuid
-from ..utils.utils import get_utc_datetime
-from ..utils.utils_system_specs import get_hostname
+import sys
+import os
+
+# Ensure project root is in path
+if __name__ == "__main__":
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from config.config import FULL_DATABASE_FILE_PATH
+from utils.utils_uuid import derive_uuid, generate_uuid
+from utils.utils import get_utc_datetime
+from utils.utils_system_specs import get_hostname
 
 
 def create_connection():
-    conn = sqlite3.connect(DATABASE_NAME)
+    """Create and return a connection to the SQLite database."""
+    conn = sqlite3.connect(FULL_DATABASE_FILE_PATH)
     return conn
 
 
@@ -913,13 +922,14 @@ class DocumentCategory:
         """Soft delete a document_category by setting is_active to 0."""
         self.update(document_category_uuid, is_active=0)
 
+
 if __name__ == "__main__":
     # Example usage
     org = Organization()
-    org_uuid = org.insert("Test Org", "Test-VM.local")
-    role = UserRole()
-    role_uuid = role.insert("test_role", "Test role description")
-    user = User()
-    user_uuid = user.insert(role_uuid, "testuser", "password123")
-    stamps = Stamps()
-    stamps_uuid = stamps.insert(org_uuid, "TEST_STAMP", keywords="['test']", created_by=user_uuid, updated_by=user_uuid)
+    # org_uuid = org.insert("Test Org", "Test-VM.local")
+    # role = UserRole()
+    # role_uuid = role.insert("test_role", "Test role description")
+    # user = User()
+    # user_uuid = user.insert(role_uuid, "testuser", "password123")
+    # stamps = Stamps()
+    # stamps_uuid = stamps.insert(org_uuid, "TEST_STAMP", keywords="['test']", created_by=user_uuid, updated_by=user_uuid)

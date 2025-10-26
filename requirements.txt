@@ -1,16 +1,58 @@
-# Web Development
-requests==2.31.0
-streamlit==1.30.0
+# ============================
+# Networking / API Clients / System Utilities
+# ============================
+requests
+psutil
+utils
 
-# PDF and Image Processing
+# ============================
+# Other
+# ============================
+streamlit==1.30.0
+sqlalchemy
+opencv-python
+numpy==1.26.3
+python-dateutil
+werkzeug
+pytest
+
+
+# ============================
+# Data Analysis / Machine Learning
+# ============================
+pandas==2.2.0
+scikit-learn
+transformers
+sentence-transformers
+
+# ============================
+# Computer Vision / OCR
+# ============================
 pdf2image==1.16.3
 Pillow==10.2.0
 PyPDF2==3.0.1
 pytesseract==0.3.10
+easyocr
+paddleocr
+paddlepaddle
+pymupdf
 
-# Data Analysis
-numpy==1.26.3
-pandas==2.2.0
+# ============================
+# File Formats / Serialization
+# ============================
+pyyaml
+openpyxl
 
-# Sytem
-psutil
+# ============================
+# LLMs
+# ============================
+ollama 
+pydantic 
+instructor
+
+# ============================
+# Poppler dependencies
+# ============================
+# meson
+# cmake
+# python-poppler
