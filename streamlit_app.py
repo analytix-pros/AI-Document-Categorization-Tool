@@ -1,88 +1,148 @@
-# streamlit_app.py
+"""Main Streamlit application entry point."""
 import os
 import streamlit as st
+import sqlite3
 
-# local packages
-from config.config import *
-from database.db_models import *
-from initial_setup.db_setup import *
-from initial_setup.config import *
-from utils.utils_uuid import *
+from config.config import FULL_DATABASE_FILE_PATH
+from database.db_models import create_connection
+from initial_setup.db_setup import setup_database
+from utils.utils_uuid import derive_uuid
+from app.pages import login, admin_panel
 
 
-# Setup database on app start if it doesn't exist
-try:
-    if os.path.exists(FULL_DATABASE_FILE_PATH):
-        pass
-    else:
+def initialize_database():
+    """Initialize database if it doesn't exist."""
+    if not os.path.exists(FULL_DATABASE_FILE_PATH):
         setup_database()
-except Exception as e:
-    print(f"An unexpected error occurred: {e}")
-setup_database()
 
 
-# st.title("AI Document Management App")
+def initialize_session_state():
+    """Initialize session state variables."""
+    if 'logged_in' not in st.session_state:
+        st.session_state['logged_in'] = False
+    if 'user_uuid' not in st.session_state:
+        st.session_state['user_uuid'] = None
+    if 'org_uuid' not in st.session_state:
+        st.session_state['org_uuid'] = None
+    if 'username' not in st.session_state:
+        st.session_state['username'] = None
+    if 'role_name' not in st.session_state:
+        st.session_state['role_name'] = None
 
-# # Sidebar for login
-# with st.sidebar:
-#     st.header("Login")
-#     username = st.text_input("Username")
-#     password = st.text_input("Password", type="password")
-#     if st.button("Login"):
-#         conn = create_connection()
-#         c = conn.cursor()
-#         c.execute("PRAGMA foreign_keys = ON")
-#         c.execute("""
-#         SELECT user_uuid, organization_uuid, user_role_uuid, pwd 
-#         FROM user 
-#         WHERE username = ? AND is_active = 1
-#         """, (username,))
-#         user_data = c.fetchone()
-#         conn.close()
 
-#         pwd_converted = derive_uuid(password)
-#         print(pwd_converted)
-#         if user_data and user_data[3] == pwd_converted:
-#             st.session_state['logged_in'] = True
-#             st.session_state['user_uuid'] = user_data[0]
-#             st.session_state['org_uuid'] = user_data[1]
-#             st.session_state['role_uuid'] = user_data[2]
-#             st.success("Logged in successfully!")
-#         else:
-#             st.error("Invalid username or password")
+def authenticate_user(username, password):
+    """
+    Authenticate user credentials and populate session state.
+    
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    conn = create_connection()
+    # Set row factory to return dictionaries
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("PRAGMA foreign_keys = ON")
+    
+    c.execute("""
+        SELECT u.user_uuid, u.organization_uuid, u.user_role_uuid, u.pwd, r.name
+        FROM user u
+        JOIN user_role r ON u.user_role_uuid = r.user_role_uuid
+        WHERE u.username = ? AND u.is_active = 1
+    """, (username,))
+    
+    user_data = c.fetchone()
+    conn.close()
 
-# # Main content if logged in
-# if 'logged_in' in st.session_state and st.session_state['logged_in']:
-#     # Determine if admin
-#     conn = create_connection()
-#     c = conn.cursor()
-#     c.execute("SELECT name FROM user_role WHERE user_role_uuid = ?", (st.session_state['role_uuid'],))
-#     role_name = c.fetchone()[0]
-#     conn.close()
-#     is_admin = role_name == 'admin'
+    print(user_data)
+    
+    if not user_data:
+        return False, "Invalid username or password"
+    
+    pwd_hash = derive_uuid(password)
+    
+    if user_data['pwd'] == pwd_hash:
+        st.session_state['logged_in'] = True
+        st.session_state['user_uuid'] = user_data['user_uuid']
+        st.session_state['org_uuid'] = user_data['organization_uuid']
+        st.session_state['role_uuid'] = user_data['user_role_uuid']
+        st.session_state['username'] = username
+        st.session_state['role_name'] = user_data['name']
+        return True, "Login successful"
+    
+    return False, "Invalid username or password"
 
-#     st.write(f"Welcome, {username}! You are logged in as {role_name}.")
 
-#     # Example tabs
-#     tab1, tab2, tab3 = st.tabs(["Dashboard", "Documents", "Settings"])
+def logout():
+    """Clear session state and log out user."""
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.rerun()
 
-#     with tab1:
-#         st.subheader("Dashboard")
-#         st.write("Overview of your organization's data.")
-#         # Add more content here later
 
-#     with tab2:
-#         st.subheader("Documents")
-#         st.write("Manage documents here.")
-#         # Add more content here later
+def main():
+    """Main application flow."""
+    # Set page config first (must be first Streamlit command)
+    st.set_page_config(
+        page_title="AI Document Management",
+        page_icon="📄",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+    
+    initialize_database()
+    initialize_session_state()
+    
+    if not st.session_state['logged_in']:
+        login.render_login_page(authenticate_user)
+    else:
+        render_main_app()
 
-#     with tab3:
-#         st.subheader("Settings")
-#         if is_admin:
-#             st.write("Admin settings: Access to all organizations.")
-#         else:
-#             st.write("User settings.")
-#         # Add more content here later
 
-# else:
-#     st.info("Please log in to access the app.")
+def render_main_app():
+    """Render main application after login."""
+    st.title("AI Document Management System")
+    
+    with st.sidebar:
+        st.header(f"Welcome, {st.session_state['username'].upper()}")
+        st.write(f"**Role:** {st.session_state['role_name'].upper()}")
+        
+        if st.button("Logout", use_container_width=True):
+            logout()
+    
+    is_admin = st.session_state['role_name'] == 'admin'
+    
+    if is_admin:
+        tabs = st.tabs(["Dashboard", "Documents", "Admin", "Settings"])
+        
+        with tabs[0]:
+            st.subheader("Dashboard")
+            st.info("Dashboard coming soon...")
+        
+        with tabs[1]:
+            st.subheader("Documents")
+            st.info("Document management coming soon...")
+        
+        with tabs[2]:
+            admin_panel.render_admin_panel()
+        
+        with tabs[3]:
+            st.subheader("Settings")
+            st.info("Settings coming soon...")
+    else:
+        tabs = st.tabs(["Dashboard", "Documents", "Settings"])
+        
+        with tabs[0]:
+            st.subheader("Dashboard")
+            st.info("Dashboard coming soon...")
+        
+        with tabs[1]:
+            st.subheader("Documents")
+            st.info("Document management coming soon...")
+        
+        with tabs[2]:
+            st.subheader("Settings")
+            st.info("Settings coming soon...")
+
+
+if __name__ == "__main__":
+    main()

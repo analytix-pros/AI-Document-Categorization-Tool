@@ -627,7 +627,7 @@ class Logging:
     def __init__(self):
         self.table = "logging"
 
-    def insert(self, organization_uuid, user_uuid, page, message, level, created_by):
+    def insert(self, organization_uuid, user_uuid, page, message, level):
         """Insert a new logging record."""
         conn = create_connection()
         c = conn.cursor()
@@ -637,10 +637,10 @@ class Logging:
         try:
             c.execute(
                 """
-                INSERT INTO logging (logging_uuid, organization_uuid, user_uuid, page, message, level, created_datetime, created_by)
+                INSERT INTO logging (logging_uuid, organization_uuid, user_uuid, page, message, level, created_datetime)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (logging_uuid, organization_uuid, user_uuid, page, message, level, now, created_by)
+                (logging_uuid, organization_uuid, user_uuid, page, message, level, now)
             )
             conn.commit()
             return logging_uuid

@@ -208,10 +208,8 @@ TABLES = [
             message TEXT,
             level TEXT,
             created_datetime TEXT,
-            created_by BLOB,
             FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid),
-            FOREIGN KEY (user_uuid) REFERENCES user (user_uuid),
-            FOREIGN KEY (created_by) REFERENCES user (user_uuid)
+            FOREIGN KEY (user_uuid) REFERENCES user (user_uuid)
         )
         """,
         "indexes": [
@@ -335,6 +333,7 @@ INSERTS = [
         "uuid_keys": {"user_uuid": ["username"]},  # Generate user_uuid from username
         "data": [
             {
+                "user_role_uuid": "bace0701-15e3-5144-97c5-47487d543032",
                 "username": "cameron",
                 "pwd": "da3ba40c-1af9-5704-8dfb-9b1571aa6ae4",
                 "first_name": "Cameron",
@@ -343,6 +342,7 @@ INSERTS = [
                 "role_name": "admin"
             },
             {
+                "user_role_uuid": "bace0701-15e3-5144-97c5-47487d543032",
                 "username": "bryan",
                 "pwd": "9eeb22a2-420f-5945-a4de-d0a382f0eb4e",
                 "first_name": "Bryan",
@@ -468,8 +468,8 @@ INSERTS = [
             {"organization_uuid": "4f4cef4a-899e-50b9-a049-d5fbfbbcc04a", "name": "CERTIFIED", "keywords": "['certified', 'certified copy', 'certification']", "description": ""},
             {"organization_uuid": "4f4cef4a-899e-50b9-a049-d5fbfbbcc04a", "name": "RECORDED", "keywords": "['recorded', 'recording']", "description": ""},
             {"organization_uuid": "4f4cef4a-899e-50b9-a049-d5fbfbbcc04a", "name": "EXEMPLIFIED", "keywords": "['exemplified']", "description": ""},
-            {"organization_uuid": "4f4cef4a-899e-50b9-a049-d5fbfbbcc04a", "name": "SERVED", "keywords": "['served', 'proof of service']", "description": ""}
-            {"organization_uuid": "4f4cef4a-899e-50b9-a049-d5fbfbbcc04a", "name": "ISSUED", "keywords": "['issued', 'date of issue']", "description": ""},
+            {"organization_uuid": "4f4cef4a-899e-50b9-a049-d5fbfbbcc04a", "name": "SERVED", "keywords": "['served', 'proof of service']", "description": ""},
+            {"organization_uuid": "4f4cef4a-899e-50b9-a049-d5fbfbbcc04a", "name": "ISSUED", "keywords": "['issued', 'date of issue']", "description": ""}
         ]
     }
 ]
