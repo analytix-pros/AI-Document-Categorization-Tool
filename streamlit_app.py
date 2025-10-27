@@ -8,10 +8,8 @@ from database.db_models import create_connection
 from initial_setup.db_setup import setup_database
 from utils.utils_uuid import derive_uuid
 from app.pages import login, admin_panel
-from app.components.document_categories import render_document_categories
 from app.components.documents import render_documents_page
 from app.components.system_status import render_system_status_sidebar, check_system_ready
-from app.components.documents import render_documents_page
 
 
 def initialize_database():
@@ -117,7 +115,7 @@ def render_main_app():
     is_admin = st.session_state['role_name'] == 'admin'
     
     if is_admin:
-        tabs = st.tabs(["Dashboard", "Documents", "Document Categories", "Admin", "Settings"])
+        tabs = st.tabs(["Dashboard", "Documents", "Admin", "Settings"])
         
         with tabs[0]:
             st.subheader("Dashboard")
@@ -127,16 +125,13 @@ def render_main_app():
             render_documents_page()
         
         with tabs[2]:
-            render_document_categories()
-        
-        with tabs[3]:
             admin_panel.render_admin_panel()
         
-        with tabs[4]:
+        with tabs[3]:
             st.subheader("Settings")
             st.info("Settings coming soon...")
     else:
-        tabs = st.tabs(["Dashboard", "Documents", "Document Categories", "Settings"])
+        tabs = st.tabs(["Dashboard", "Documents", "Settings"])
         
         with tabs[0]:
             st.subheader("Dashboard")
@@ -146,9 +141,6 @@ def render_main_app():
             render_documents_page()
         
         with tabs[2]:
-            render_document_categories()
-        
-        with tabs[3]:
             st.subheader("Settings")
             st.info("Settings coming soon...")
 

@@ -1,18 +1,18 @@
 """Admin panel for managing system entities."""
 import streamlit as st
-from app.components import llm_models, ocr_models, organizations, users, stamps
+from app.components import llm_models, ocr_models, organizations, users, stamps, document_categories
 
 
 def render_admin_panel():
     """Render the admin panel with sub-tabs for different management areas."""
-    # st.subheader("Admin Panel")
     
     admin_tabs = st.tabs([
         "LLM Models",
         "OCR Models", 
         "Organizations",
         "Users",
-        "Stamps"
+        "Stamps",
+        "Document Categories"
     ])
     
     with admin_tabs[0]:
@@ -29,3 +29,6 @@ def render_admin_panel():
     
     with admin_tabs[4]:
         stamps.render_stamps_management()
+    
+    with admin_tabs[5]:
+        document_categories.render_document_categories()
