@@ -8,6 +8,10 @@ from database.db_models import create_connection
 from initial_setup.db_setup import setup_database
 from utils.utils_uuid import derive_uuid
 from app.pages import login, admin_panel
+from app.components.document_categories import render_document_categories
+from app.components.documents import render_documents_page
+from app.components.system_status import render_system_status_sidebar, check_system_ready
+from app.components.documents import render_documents_page
 
 
 def initialize_database():
@@ -38,7 +42,6 @@ def authenticate_user(username, password):
         tuple: (success: bool, message: str)
     """
     conn = create_connection()
-    # Set row factory to return dictionaries
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     c.execute("PRAGMA foreign_keys = ON")
@@ -81,7 +84,6 @@ def logout():
 
 def main():
     """Main application flow."""
-    # Set page config first (must be first Streamlit command)
     st.set_page_config(
         page_title="AI Document Management",
         page_icon="📄",
@@ -108,38 +110,45 @@ def render_main_app():
         
         if st.button("Logout", use_container_width=True):
             logout()
+        
+        # Render system status checker
+        render_system_status_sidebar()
     
     is_admin = st.session_state['role_name'] == 'admin'
     
     if is_admin:
-        tabs = st.tabs(["Dashboard", "Documents", "Admin", "Settings"])
+        tabs = st.tabs(["Dashboard", "Documents", "Document Categories", "Admin", "Settings"])
         
         with tabs[0]:
             st.subheader("Dashboard")
             st.info("Dashboard coming soon...")
         
         with tabs[1]:
-            st.subheader("Documents")
-            st.info("Document management coming soon...")
+            render_documents_page()
         
         with tabs[2]:
-            admin_panel.render_admin_panel()
+            render_document_categories()
         
         with tabs[3]:
+            admin_panel.render_admin_panel()
+        
+        with tabs[4]:
             st.subheader("Settings")
             st.info("Settings coming soon...")
     else:
-        tabs = st.tabs(["Dashboard", "Documents", "Settings"])
+        tabs = st.tabs(["Dashboard", "Documents", "Document Categories", "Settings"])
         
         with tabs[0]:
             st.subheader("Dashboard")
             st.info("Dashboard coming soon...")
         
         with tabs[1]:
-            st.subheader("Documents")
-            st.info("Document management coming soon...")
+            render_documents_page()
         
         with tabs[2]:
+            render_document_categories()
+        
+        with tabs[3]:
             st.subheader("Settings")
             st.info("Settings coming soon...")
 

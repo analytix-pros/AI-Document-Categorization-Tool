@@ -20,9 +20,44 @@ except ImportError as e:
     print("Ensure config.py, database/db_models.py, utils/utils.py, utils/utils_system_specs.py, and utils/utils_uuid.py exist.")
     sys.exit(1)
 
-
-# Insert sample data
 now = get_utc_datetime()
+
+
+def lookup_uuid_from_db(conn, table_name, lookup_columns, row_data):
+    """
+    Look up a UUID from the database based on specified columns.
+    
+    Args:
+        conn: Database connection
+        table_name: Table to search in
+        lookup_columns: List of column names to match
+        row_data: Dictionary containing the data for lookup
+        
+    Returns:
+        str: UUID if found, None otherwise
+    """
+    c = conn.cursor()
+    
+    # Build WHERE clause dynamically
+    where_conditions = []
+    params = []
+    
+    for col in lookup_columns:
+        where_conditions.append(f"{col} = ?")
+        params.append(row_data.get(col))
+    
+    where_clause = " AND ".join(where_conditions)
+    uuid_column = f"{table_name[:-1] if table_name.endswith('s') else table_name}_uuid"
+    
+    query = f"SELECT {uuid_column} FROM {table_name} WHERE {where_clause}"
+    
+    try:
+        c.execute(query, params)
+        result = c.fetchone()
+        return result[0] if result else None
+    except sqlite3.Error as e:
+        print(f"ERROR: Failed to lookup UUID from {table_name}: {str(e)}")
+        return None
 
 
 def setup_database():
@@ -69,27 +104,63 @@ def setup_database():
         table_name = insert["table"]
         columns = insert["columns"]
         uuid_keys = insert.get("uuid_keys", {})
+        lookup_keys = insert.get("lookup_keys", {})
+        
         try:
             c.execute(f"SELECT COUNT(*) FROM {table_name}")
             if c.fetchone()[0] == 0:
-                for row in insert["data"]:
+                # Sort data by hierarchy_level if it exists (for hierarchical tables)
+                data_to_insert = insert["data"]
+                if "hierarchy_level" in columns:
+                    data_to_insert = sorted(data_to_insert, key=lambda x: x.get("hierarchy_level", 0))
+                
+                for row in data_to_insert:
                     values = []
+                    
                     for col in columns:
                         if col == "created_datetime" or col == "updated_datetime":
                             values.append(now)
                         elif col == "is_active":
                             values.append(1)
-                        elif col.endswith("_uuid") and col in uuid_keys:
-                            # Generate UUID using specified keys
-                            uuid_input = "".join(
-                                str(row.get(key, "")) if key != "vm_name" else row.get("vm_name", "")
-                                for key in uuid_keys[col]
-                            )
-                            values.append(derive_uuid(uuid_input))
                         elif col in ["created_by", "updated_by"]:
                             values.append(derive_uuid("cameron"))
+                        elif col.endswith("_uuid") and col in lookup_keys:
+                            # Lookup UUID from database
+                            lookup_config = lookup_keys[col]
+                            lookup_table = lookup_config["table"]
+                            lookup_cols = lookup_config["lookup_columns"]
+                            
+                            # Build lookup data from special name columns
+                            lookup_data = {}
+                            for lookup_col in lookup_cols:
+                                if lookup_col == "organization_uuid":
+                                    lookup_data[lookup_col] = row.get("organization_uuid")
+                                elif lookup_col == "name":
+                                    # Use special name field (e.g., parent_category_name, stamps_name)
+                                    name_key = f"{col.replace('_uuid', '')}_name"
+                                    if col == "stamps_uuid":
+                                        name_key = "stamps_name"
+                                    lookup_data[lookup_col] = row.get(name_key)
+                            
+                            # Skip lookup if name is None
+                            if lookup_data.get("name") is None:
+                                values.append(None)
+                            else:
+                                looked_up_uuid = lookup_uuid_from_db(conn, lookup_table, lookup_cols, lookup_data)
+                                values.append(looked_up_uuid)
+                        elif col.endswith("_uuid") and col in uuid_keys:
+                            # Generate UUID using specified keys
+                            uuid_input_parts = []
+                            for key in uuid_keys[col]:
+                                if key == "vm_name":
+                                    uuid_input_parts.append(row.get("vm_name", ""))
+                                else:
+                                    uuid_input_parts.append(str(row.get(key, "")))
+                            uuid_input = "".join(uuid_input_parts)
+                            values.append(derive_uuid(uuid_input))
                         else:
                             values.append(row.get(col, None if col.endswith("_uuid") else ""))
+                    
                     try:
                         c.execute(
                             f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({', '.join(['?' for _ in columns])})",

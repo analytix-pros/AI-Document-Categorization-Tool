@@ -638,7 +638,7 @@ class Logging:
             c.execute(
                 """
                 INSERT INTO logging (logging_uuid, organization_uuid, user_uuid, page, message, level, created_datetime)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (logging_uuid, organization_uuid, user_uuid, page, message, level, now)
             )
@@ -648,47 +648,6 @@ class Logging:
             raise ValueError(f"Failed to insert logging: {str(e)}")
         finally:
             conn.close()
-
-    def update(self, logging_uuid, organization_uuid=None, user_uuid=None, page=None, message=None, level=None):
-        """Update an existing logging record."""
-        conn = create_connection()
-        c = conn.cursor()
-        c.execute("PRAGMA foreign_keys = ON")
-        updates = []
-        params = []
-        if organization_uuid is not None:
-            updates.append("organization_uuid = ?")
-            params.append(organization_uuid)
-        if user_uuid is not None:
-            updates.append("user_uuid = ?")
-            params.append(user_uuid)
-        if page is not None:
-            updates.append("page = ?")
-            params.append(page)
-        if message is not None:
-            updates.append("message = ?")
-            params.append(message)
-        if level is not None:
-            updates.append("level = ?")
-            params.append(level)
-        if not updates:
-            conn.close()
-            return
-        params.append(logging_uuid)
-        try:
-            c.execute(
-                f"UPDATE logging SET {', '.join(updates)} WHERE logging_uuid = ?",
-                params
-            )
-            conn.commit()
-        except sqlite3.IntegrityError as e:
-            raise ValueError(f"Failed to update logging: {str(e)}")
-        finally:
-            conn.close()
-
-    def delete(self, logging_uuid):
-        """Logging records are not soft-deleted, as they are immutable audit logs."""
-        raise NotImplementedError("Logging records cannot be deleted.")
 
 class Batch:
     def __init__(self):

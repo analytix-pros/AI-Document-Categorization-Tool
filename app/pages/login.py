@@ -20,8 +20,6 @@ def authenticate_callback(username, password):
     try:
         # Transform the entered password using derive_uuid
         transformed_password = derive_uuid(password)
-
-        print(f"Should be:\nda3ba40c-1af9-5704-8dfb-9b1571aa6ae4\nActually is:\n{transformed_password}")
         
         # Connect to the database (replace 'your_database.db' with your actual database)
         conn = sqlite3.connect(FULL_DATABASE_FILE_PATH)
@@ -77,8 +75,6 @@ def render_login_page(authenticate_callback):
             
             if submit:
                 print(f"=== LOGIN ATTEMPT: User '{username}' ===")
-
-                print(f"Should be:\nda3ba40c-1af9-5704-8dfb-9b1571aa6ae4\nActually is:\n{derive_uuid(password)}")
                 
                 if not username or not password:
                     st.error("Please enter both username and password")

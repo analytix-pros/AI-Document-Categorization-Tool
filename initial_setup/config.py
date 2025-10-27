@@ -311,7 +311,7 @@ INSERTS = [
     {
        "table": "organization",
         "columns": ["organization_uuid", "name", "vm_name", "vm_hash", "is_active", "is_automation_on", "created_datetime", "updated_datetime"],
-        "uuid_keys": {"organization_uuid": ["name"]},  # Generate organization_uuid from name
+        "uuid_keys": {"organization_uuid": ["name"]},
         "data": [
             {"name": "Local Testing - JumpBox01", "vm_name": get_hostname(), "vm_hash": derive_uuid(get_hostname()), "is_automation_on": 0},
             {"name": "Local Testing - CS", "vm_name": "JumpBox01", "vm_hash": derive_uuid('JumpBox01'), "is_automation_on": 0}
@@ -320,7 +320,7 @@ INSERTS = [
     {
         "table": "user_role",
         "columns": ["user_role_uuid", "name", "description", "is_active", "created_datetime", "updated_datetime"],
-        "uuid_keys": {"user_role_uuid": ["name"]},  # Generate user_role_uuid from name
+        "uuid_keys": {"user_role_uuid": ["name"]},
         "data": [
             {"name": "admin", "description": "Access to everything and all organizations' data/settings"},
             {"name": "editor", "description": "Configure automation and override categorizations within their organization"},
@@ -330,7 +330,7 @@ INSERTS = [
     {
         "table": "user",
         "columns": ["user_uuid", "organization_uuid", "user_role_uuid", "username", "pwd", "first_name", "last_name", "email", "is_active", "created_datetime", "updated_datetime"],
-        "uuid_keys": {"user_uuid": ["username"]},  # Generate user_uuid from username
+        "uuid_keys": {"user_uuid": ["username"]},
         "data": [
             {
                 "user_role_uuid": "bace0701-15e3-5144-97c5-47487d543032",
@@ -355,7 +355,7 @@ INSERTS = [
     {
         "table": "ocr_models",
         "columns": ["ocr_models_uuid", "name", "description", "min_storage_gb", "min_ram_gb", "gpu_required", "gpu_optional", "min_vram_gb", "default_language", "default_dpi", "max_pages", "is_active", "created_datetime", "updated_datetime"],
-        "uuid_keys": {"ocr_models_uuid": ["name"]},  # Generate ocr_models_uuid from name
+        "uuid_keys": {"ocr_models_uuid": ["name"]},
         "data": [
             {
                 "name": "Tesseract",
@@ -398,7 +398,7 @@ INSERTS = [
     {
         "table": "llm_models",
         "columns": ["llm_model_uuid", "system", "name", "description", "min_ram_gb", "default_timeout", "gpu_required", "gpu_optional", "min_vram_gb", "is_active", "created_datetime", "updated_datetime"],
-        "uuid_keys": {"llm_model_uuid": ["name"]},  # Generate llm_model_uuid from name
+        "uuid_keys": {"llm_model_uuid": ["name"]},
         "data": [
             {
                 "name": "granite3.2-vision",
@@ -455,7 +455,7 @@ INSERTS = [
     {
         "table": "stamps",
         "columns": ["stamps_uuid", "organization_uuid", "name", "description", "keywords", "is_active", "created_datetime", "created_by", "updated_datetime", "updated_by"],
-        "uuid_keys": {"stamps_uuid": ["organization_uuid", "name"]},  # Generate stamps_uuid from vm_name and name
+        "uuid_keys": {"stamps_uuid": ["organization_uuid", "name"]},
         "data": [
             {"organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "FILED", "keywords": "['filed', 'file stamped']", "description": ""},
             {"organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "CERTIFIED", "keywords": "['certified', 'certified copy', 'certification']", "description": ""},
@@ -463,13 +463,33 @@ INSERTS = [
             {"organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "EXEMPLIFIED", "keywords": "['exemplified']", "description": ""},
             {"organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "SERVED", "keywords": "['served', 'proof of service']", "description": ""},
             {"organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "ISSUED", "keywords": "['issued', 'date of issue']", "description": ""},
-            
             {"organization_uuid": "4f4cef4a-899e-50b9-a049-d5fbfbbcc04a", "name": "FILED", "keywords": "['filed', 'file stamped']", "description": ""},
             {"organization_uuid": "4f4cef4a-899e-50b9-a049-d5fbfbbcc04a", "name": "CERTIFIED", "keywords": "['certified', 'certified copy', 'certification']", "description": ""},
             {"organization_uuid": "4f4cef4a-899e-50b9-a049-d5fbfbbcc04a", "name": "RECORDED", "keywords": "['recorded', 'recording']", "description": ""},
             {"organization_uuid": "4f4cef4a-899e-50b9-a049-d5fbfbbcc04a", "name": "EXEMPLIFIED", "keywords": "['exemplified']", "description": ""},
             {"organization_uuid": "4f4cef4a-899e-50b9-a049-d5fbfbbcc04a", "name": "SERVED", "keywords": "['served', 'proof of service']", "description": ""},
             {"organization_uuid": "4f4cef4a-899e-50b9-a049-d5fbfbbcc04a", "name": "ISSUED", "keywords": "['issued', 'date of issue']", "description": ""}
+        ]
+    },
+    {
+        "table": "category",
+        "columns": ["category_uuid", "parent_category_uuid", "organization_uuid", "name", "hierarchy_level", "use_stamps", "stamps_uuid", "description", "keywords", "min_threshold", "exclusion_rules", "file_rename_rules", "is_active", "created_datetime", "created_by", "updated_datetime", "updated_by"],
+        "uuid_keys": {"category_uuid": ["parent_category_uuid", "organization_uuid", "name"]},
+        "lookup_keys": {"parent_category_uuid": {"table": "category", "lookup_columns": ["organization_uuid", "name"]}, "stamps_uuid": {"table": "stamps", "lookup_columns": ["organization_uuid", "name"]}},
+        "data": [
+            {"parent_category_name": None, "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Garnishments", "hierarchy_level": 1, "use_stamps": 0, "stamps_name": None, "description": "Documents related to wage or bank garnishments", "keywords": "['garnishment', 'garnish', 'wage', 'bank account', 'earnings']", "min_threshold": 0.75},
+            {"parent_category_name": None, "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Transcript of Judgments", "hierarchy_level": 1, "use_stamps": 0, "stamps_name": None, "description": "Court transcripts of judgments", "keywords": "['transcript', 'judgment', 'TOJ', 'court', 'clerk']", "min_threshold": 0.75},
+            {"parent_category_name": None, "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Service", "hierarchy_level": 1, "use_stamps": 0, "stamps_name": None, "description": "Service of process documents", "keywords": "['service', 'served', 'process server', 'certified mail', 'summons']", "min_threshold": 0.75},
+            {"parent_category_name": "Garnishments", "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Wage Garn", "hierarchy_level": 2, "use_stamps": 0, "stamps_name": None, "description": "Wage garnishment documents", "keywords": "['wage', 'employer', 'earnings', 'payroll', 'salary']", "min_threshold": 0.75},
+            {"parent_category_name": "Garnishments", "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Bank Garn", "hierarchy_level": 2, "use_stamps": 0, "stamps_name": None, "description": "Bank garnishment documents", "keywords": "['bank', 'account', 'financial institution', 'deposit', 'checking', 'savings']", "min_threshold": 0.75},
+            {"parent_category_name": "Transcript of Judgments", "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Accepted TOJ", "hierarchy_level": 2, "use_stamps": 0, "stamps_name": None, "description": "Accepted transcript of judgment", "keywords": "['accepted', 'approved', 'filed', 'recorded', 'issued']", "min_threshold": 0.75},
+            {"parent_category_name": "Transcript of Judgments", "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Rejected TOJ", "hierarchy_level": 2, "use_stamps": 0, "stamps_name": None, "description": "Rejected transcript of judgment", "keywords": "['rejected', 'denied', 'insufficient', 'incomplete']", "min_threshold": 0.75},
+            {"parent_category_name": "Service", "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Served", "hierarchy_level": 2, "use_stamps": 0, "stamps_name": None, "description": "Successfully served documents", "keywords": "['served', 'delivered', 'receipt', 'signed', 'accepted']", "min_threshold": 0.75},
+            {"parent_category_name": "Service", "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Non-Served", "hierarchy_level": 2, "use_stamps": 0, "stamps_name": None, "description": "Documents that were not successfully served", "keywords": "['undelivered', 'refused', 'unable to serve', 'not served', 'returned']", "min_threshold": 0.75},
+            {"parent_category_name": "Accepted TOJ", "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Issued TOJ", "hierarchy_level": 3, "use_stamps": 1, "stamps_name": "ISSUED", "description": "Issued transcript of judgment", "keywords": "['issued', 'date of issue']", "min_threshold": 0.75},
+            {"parent_category_name": "Accepted TOJ", "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Recorded TOJ", "hierarchy_level": 3, "use_stamps": 1, "stamps_name": "RECORDED", "description": "Recorded transcript of judgment", "keywords": "['recorded', 'recording', 'book', 'page']", "min_threshold": 0.75},
+            {"parent_category_name": "Accepted TOJ", "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Exemplified TOJ", "hierarchy_level": 3, "use_stamps": 1, "stamps_name": "EXEMPLIFIED", "description": "Exemplified transcript of judgment", "keywords": "['exemplified', 'exemplification']", "min_threshold": 0.75},
+            {"parent_category_name": "Accepted TOJ", "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Certified TOJ", "hierarchy_level": 3, "use_stamps": 1, "stamps_name": "CERTIFIED", "description": "Certified transcript of judgment", "keywords": "['certified', 'certification', 'true copy', 'certified copy']", "min_threshold": 0.75}
         ]
     }
 ]
