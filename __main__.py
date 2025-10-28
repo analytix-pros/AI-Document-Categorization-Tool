@@ -12,7 +12,12 @@ if __name__ == "__main__":
     
     # Run with streamlit
     try:
+        # Start Ollama in background — works on Windows, macOS, Linux
+        subprocess.Popen(['ollama', 'serve'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+        # Start Streamlit
         subprocess.run(['streamlit', 'run', streamlit_app_path], check=True)
+        
     except FileNotFoundError:
         print("Error: Streamlit is not installed or not in PATH")
         print("Please install it with: pip install streamlit")
