@@ -17,20 +17,40 @@ DATABASE_NAME = 'ai_mail_app.db'
 FULL_DATABASE_FILE_PATH = os.path.join('.', DATABASE_NAME)
 
 
-
 # Streamlit Configurations
 
-# For the admin_panel.py instead of having the admin tabs in the file, can you add a dictionary variable in the confg/config.py file structured like the following - I want to dynamically be able to adjust it through the config vs through code:
-
+# Admin panel tabs configuration - dynamically configurable
 ADMIN_TABS = {
+    "CAT": {
+        "tab_name": "Document Categories",
+        "ordinal": 0,
+        "render": "document_categories.render_document_categories()"
+    },
     "LLM": {
         "tab_name": "LLM Models",
-        "ordinal": 0,
+        "ordinal": 1,
         "render": "llm_models.render_llm_models_management()"
     },
     "OCR": {
         "tab_name": "OCR Models",
-        "ordinal": 1,
+        "ordinal": 2,
         "render": "ocr_models.render_ocr_models_management()"
-    }
+    },
+    "STMP": {
+        "tab_name": "Stamps",
+        "ordinal": 3,
+        "render": "stamps.render_stamps_management()"
+    },
+    "ORG": {
+        "tab_name": "Organizations",
+        "ordinal": 4,
+        "render": "organizations.render_organizations_management()"
+    },
+    "USR": {
+        "tab_name": "Users",
+        "ordinal": 5,
+        "render": "users.render_users_management()"
+    },
+    
+    
 }

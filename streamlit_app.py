@@ -1,4 +1,4 @@
-"""Main Streamlit application entry point."""
+"""Main Streamlit application entry point with AI Analysis tab."""
 import os
 import streamlit as st
 import sqlite3
@@ -9,7 +9,8 @@ from initial_setup.db_setup import setup_database
 from utils.utils_uuid import derive_uuid
 from app.pages import login, admin_panel
 from app.components.documents import render_documents_page
-from app.components.system_status import render_system_status_sidebar, check_system_ready
+from app.components.ai_analysis import render_ai_analysis_page
+from app.components.system_status import render_system_status_sidebar, check_system_ready_for_upload
 
 
 def initialize_database():
@@ -30,6 +31,8 @@ def initialize_session_state():
         st.session_state['username'] = None
     if 'role_name' not in st.session_state:
         st.session_state['role_name'] = None
+    if 'active_tab' not in st.session_state:
+        st.session_state['active_tab'] = 0
 
 
 def authenticate_user(username, password):
@@ -114,34 +117,68 @@ def render_main_app():
     
     is_admin = st.session_state['role_name'] == 'admin'
     
+    # Handle automatic tab switching
+    if st.session_state.get('switch_to_ai_analysis', False):
+        st.session_state['active_tab'] = 2  # AI Analysis tab index
+        st.session_state['switch_to_ai_analysis'] = False
+    
     if is_admin:
-        tabs = st.tabs(["Dashboard", "Documents", "Admin", "Settings"])
+        # Create tabs with AI Analysis
+        tabs = st.tabs(["Dashboard", "Documents", "AI Analysis", "Admin", "Settings"])
+        
+        # Track active tab
+        default_tab = st.session_state.get('active_tab', 0)
         
         with tabs[0]:
-            st.subheader("Dashboard")
+            if st.session_state.get('active_tab') != 0:
+                st.session_state['active_tab'] = 0
+            # st.subheader("Dashboard")
             st.info("Dashboard coming soon...")
         
         with tabs[1]:
+            if st.session_state.get('active_tab') != 1:
+                st.session_state['active_tab'] = 1
             render_documents_page()
         
         with tabs[2]:
-            admin_panel.render_admin_panel()
+            if st.session_state.get('active_tab') != 2:
+                st.session_state['active_tab'] = 2
+            render_ai_analysis_page()
         
         with tabs[3]:
-            st.subheader("Settings")
+            if st.session_state.get('active_tab') != 3:
+                st.session_state['active_tab'] = 3
+            admin_panel.render_admin_panel()
+        
+        with tabs[4]:
+            if st.session_state.get('active_tab') != 4:
+                st.session_state['active_tab'] = 4
+            # st.subheader("Settings")
             st.info("Settings coming soon...")
     else:
-        tabs = st.tabs(["Dashboard", "Documents", "Settings"])
+        # Non-admin users
+        tabs = st.tabs(["Dashboard", "Documents", "AI Analysis", "Settings"])
         
         with tabs[0]:
-            st.subheader("Dashboard")
+            if st.session_state.get('active_tab') != 0:
+                st.session_state['active_tab'] = 0
+            # st.subheader("Dashboard")
             st.info("Dashboard coming soon...")
         
         with tabs[1]:
+            if st.session_state.get('active_tab') != 1:
+                st.session_state['active_tab'] = 1
             render_documents_page()
         
         with tabs[2]:
-            st.subheader("Settings")
+            if st.session_state.get('active_tab') != 2:
+                st.session_state['active_tab'] = 2
+            render_ai_analysis_page()
+        
+        with tabs[3]:
+            if st.session_state.get('active_tab') != 3:
+                st.session_state['active_tab'] = 3
+            # st.subheader("Settings")
             st.info("Settings coming soon...")
 
 

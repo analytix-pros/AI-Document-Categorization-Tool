@@ -1,4 +1,4 @@
-"""System checker with graceful OCR handling - uses only available models."""
+"""System checker with automatic model downloads - NEVER disables Ollama airplane mode."""
 import subprocess
 import sys
 import platform
@@ -145,6 +145,129 @@ def check_ollama_models():
         return {'success': False, 'models': [], 'error': str(e)}
 
 
+def download_ollama_model(model_name):
+    """
+    Download an Ollama model if not already installed.
+    
+    Args:
+        model_name (str): Name of the model to download (e.g., 'llama2:7b')
+    
+    Returns:
+        dict: Download status with success, message, and optional process
+    """
+    try:
+        # Check if already installed
+        installed_models = check_ollama_models()
+        if model_name in installed_models.get('models', []):
+            return {
+                'success': True,
+                'already_installed': True,
+                'message': f'Model {model_name} already installed',
+                'process': None
+            }
+        
+        # Start download process
+        process = subprocess.Popen(
+            ['ollama', 'pull', model_name],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        return {
+            'success': True,
+            'already_installed': False,
+            'message': f'Downloading {model_name}...',
+            'process': process
+        }
+    except FileNotFoundError:
+        return {
+            'success': False,
+            'already_installed': False,
+            'message': 'Ollama not found. Please install Ollama first.',
+            'process': None
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'already_installed': False,
+            'message': f'Error: {str(e)}',
+            'process': None
+        }
+
+
+def download_all_required_models(progress_callback=None):
+    """
+    Download all required Ollama models that are compatible with the system.
+    
+    Args:
+        progress_callback: Optional function to call with progress updates
+                          Signature: callback(model_name, status, message)
+    
+    Returns:
+        dict: Overall download status
+    """
+    compatible_models = get_compatible_llm_models()
+    required_models = [m['name'] for m in compatible_models]
+    
+    if not required_models:
+        return {
+            'success': True,
+            'message': 'No models required for this hardware',
+            'models_processed': [],
+            'models_downloaded': [],
+            'models_failed': []
+        }
+    
+    models_downloaded = []
+    models_already_installed = []
+    models_failed = []
+    
+    for model_name in required_models:
+        if progress_callback:
+            progress_callback(model_name, 'starting', f'Checking {model_name}...')
+        
+        result = download_ollama_model(model_name)
+        
+        if result['success']:
+            if result['already_installed']:
+                models_already_installed.append(model_name)
+                if progress_callback:
+                    progress_callback(model_name, 'already_installed', result['message'])
+            else:
+                # Wait for download to complete
+                process = result['process']
+                if process:
+                    if progress_callback:
+                        progress_callback(model_name, 'downloading', result['message'])
+                    
+                    stdout, stderr = process.communicate()
+                    
+                    if process.returncode == 0:
+                        models_downloaded.append(model_name)
+                        if progress_callback:
+                            progress_callback(model_name, 'completed', f'Successfully downloaded {model_name}')
+                    else:
+                        models_failed.append({'model': model_name, 'error': stderr})
+                        if progress_callback:
+                            progress_callback(model_name, 'failed', f'Failed to download {model_name}: {stderr}')
+        else:
+            models_failed.append({'model': model_name, 'error': result['message']})
+            if progress_callback:
+                progress_callback(model_name, 'failed', result['message'])
+    
+    all_success = len(models_failed) == 0
+    
+    return {
+        'success': all_success,
+        'message': f"Downloaded {len(models_downloaded)}, Already installed {len(models_already_installed)}, Failed {len(models_failed)}",
+        'models_processed': required_models,
+        'models_downloaded': models_downloaded,
+        'models_already_installed': models_already_installed,
+        'models_failed': models_failed
+    }
+
+
 def check_required_ollama_models():
     """Check if required compatible Ollama models are installed."""
     compatible_models = get_compatible_llm_models()
@@ -160,7 +283,8 @@ def check_required_ollama_models():
         'installed': installed_models,
         'status': model_status,
         'all_installed': all(model_status.values()) if model_status else True,
-        'compatible_models_info': compatible_models
+        'compatible_models_info': compatible_models,
+        'missing_models': [m for m, installed in model_status.items() if not installed]
     }
 
 
@@ -249,29 +373,44 @@ def check_ocr_dependencies():
     }
 
 
-def disable_ollama_airplane_mode():
-    """Attempt to ensure Ollama service is accessible."""
-    system = platform.system()
+def check_ollama_service_status():
+    """
+    Check if Ollama service is accessible.
+    CRITICAL: NEVER attempts to disable airplane mode or modify Ollama settings.
     
+    Returns:
+        dict: Service status information only
+    """
     try:
         result = subprocess.run(['ollama', 'list'], capture_output=True, text=True, timeout=10)
         
         if result.returncode == 0:
-            return {'success': True, 'message': 'Ollama service is online and accessible'}
+            return {
+                'success': True,
+                'accessible': True,
+                'message': 'Ollama service is online and accessible',
+                'airplane_mode': 'Airplane mode status: PRESERVED (not checked or modified)'
+            }
         else:
-            if system in ['Darwin', 'Linux']:
-                subprocess.Popen(['ollama', 'serve'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                return {'success': True, 'message': 'Attempted to start Ollama service'}
-            else:
-                return {'success': False, 'message': 'Please start Ollama from Start Menu'}
+            return {
+                'success': False,
+                'accessible': False,
+                'message': 'Ollama service returned error. Please check Ollama application.',
+                'airplane_mode': 'Airplane mode status: PRESERVED (not checked or modified)'
+            }
     except Exception as e:
-        return {'success': False, 'message': f'Could not connect to Ollama: {str(e)}'}
+        return {
+            'success': False,
+            'accessible': False,
+            'message': f'Could not connect to Ollama: {str(e)}',
+            'airplane_mode': 'Airplane mode status: PRESERVED (not checked or modified)'
+        }
 
 
 def check_all_dependencies():
     """
     Comprehensive system check.
-    Returns available OCR models for graceful degradation.
+    Returns available OCR models and Ollama status without modifying airplane mode.
     """
     os_info = get_os_info()
     system_specs = get_system_specs()
@@ -280,16 +419,16 @@ def check_all_dependencies():
     ollama_models = check_required_ollama_models() if ollama_status['installed'] else None
     ocr_status = check_ocr_dependencies()
     
-    ollama_online = None
+    ollama_service = None
     if ollama_status['installed']:
-        ollama_online = disable_ollama_airplane_mode()
+        ollama_service = check_ollama_service_status()
     
-    # System is "ready" if at least one OCR is available (not requiring all)
+    # System is "ready" if at least one OCR is available
     system_ready = (
         internet_status['connected'] and
         ollama_status['installed'] and 
         (ollama_models['all_installed'] if ollama_models else False) and
-        ocr_status['at_least_one_available']  # Changed from all_installed
+        ocr_status['at_least_one_available']
     )
     
     return {
@@ -301,7 +440,7 @@ def check_all_dependencies():
             'version': ollama_status.get('version'),
             'error': ollama_status.get('error'),
             'models': ollama_models,
-            'online_status': ollama_online
+            'service_status': ollama_service
         },
         'ocr': ocr_status,
         'all_ready': system_ready

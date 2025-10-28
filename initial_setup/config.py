@@ -475,7 +475,16 @@ INSERTS = [
         "table": "category",
         "columns": ["category_uuid", "parent_category_uuid", "organization_uuid", "name", "hierarchy_level", "use_stamps", "stamps_uuid", "description", "keywords", "min_threshold", "exclusion_rules", "file_rename_rules", "is_active", "created_datetime", "created_by", "updated_datetime", "updated_by"],
         "uuid_keys": {"category_uuid": ["parent_category_uuid", "organization_uuid", "name"]},
-        "lookup_keys": {"parent_category_uuid": {"table": "category", "lookup_columns": ["organization_uuid", "name"]}, "stamps_uuid": {"table": "stamps", "lookup_columns": ["organization_uuid", "name"]}},
+        "lookup_keys": {
+            "parent_category_uuid": {
+                "table": "category", 
+                "lookup_columns": ["organization_uuid", "name"]
+                }, 
+            "stamps_uuid": {
+                "table": "stamps", 
+                "lookup_columns": ["organization_uuid", "name"]
+                }
+            },
         "data": [
             {"parent_category_name": None, "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Garnishments", "hierarchy_level": 1, "use_stamps": 0, "stamps_name": None, "description": "Documents related to wage or bank garnishments", "keywords": "['garnishment', 'garnish', 'wage', 'bank account', 'earnings']", "min_threshold": 0.75},
             {"parent_category_name": None, "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae", "name": "Transcript of Judgments", "hierarchy_level": 1, "use_stamps": 0, "stamps_name": None, "description": "Court transcripts of judgments", "keywords": "['transcript', 'judgment', 'TOJ', 'court', 'clerk']", "min_threshold": 0.75},

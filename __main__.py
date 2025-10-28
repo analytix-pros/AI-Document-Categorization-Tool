@@ -20,5 +20,3 @@ if __name__ == "__main__":
     except subprocess.CalledProcessError as e:
         print(f"Error running Streamlit: {e}")
         sys.exit(1)
-
-

@@ -28,7 +28,7 @@ def render_llm_models_management():
     log_page_view(st.session_state, '/admin/llm_models')
     print("=== LLM MODELS MANAGEMENT PAGE ===")
     
-    st.markdown("### LLM Models Management")
+    # st.markdown("### LLM Models Management")
     
     df = get_all_llm_models()
     
@@ -42,7 +42,7 @@ def render_llm_models_management():
         return
     
     # Create two columns: table on left, details on right
-    col_table, col_details = st.columns([3, 2])
+    col_table, col_details = st.columns([4, 2])
     
     with col_table:
         # Prepare display dataframe
@@ -97,10 +97,10 @@ def render_llm_models_management():
             render_add_form()
     
     with col_details:
-        st.markdown("#### Full Details")
+        # st.markdown("#### Full Details")
         
         # Selection mechanism
-        model_options = ['(Select a model)'] + df['name'].tolist()
+        model_options = ['(View More Details)'] + df['name'].tolist()
         selected_model = st.selectbox(
             "Select model to view details",
             model_options,
@@ -108,7 +108,7 @@ def render_llm_models_management():
             label_visibility='collapsed'
         )
         
-        if selected_model != '(Select a model)':
+        if selected_model != '(View More Details)':
             model_data = df[df['name'] == selected_model].iloc[0]
             
             st.markdown(f"**System:** {model_data['system']}")

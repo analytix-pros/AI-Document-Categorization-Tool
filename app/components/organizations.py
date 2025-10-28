@@ -20,7 +20,7 @@ def get_all_organizations():
 
 def render_organizations_management():
     """Render organizations management interface with data editor."""
-    st.markdown("### Organizations Management")
+    # st.markdown("### Organizations Management")
     
     df = get_all_organizations()
     
@@ -33,7 +33,7 @@ def render_organizations_management():
             render_add_form()
         return
     
-    col_table, col_details = st.columns([3, 2])
+    col_table, col_details = st.columns([4, 2])
     
     with col_table:
         display_df = df.copy()
@@ -77,9 +77,9 @@ def render_organizations_management():
             render_add_form()
     
     with col_details:
-        st.markdown("#### Full Details")
+        # st.markdown("#### Full Details")
         
-        org_options = ['(Select an organization)'] + df['name'].tolist()
+        org_options = ['(View More Details)'] + df['name'].tolist()
         selected_org = st.selectbox(
             "Select organization",
             org_options,
@@ -87,7 +87,7 @@ def render_organizations_management():
             label_visibility='collapsed'
         )
         
-        if selected_org != '(Select an organization)':
+        if selected_org != '(View More Details)':
             org_data = df[df['name'] == selected_org].iloc[0]
             
             st.markdown(f"**Name:** {org_data['name']}")

@@ -42,7 +42,7 @@ def get_organizations():
 
 def render_users_management():
     """Render users management interface with data editor."""
-    st.markdown("### Users Management")
+    # st.markdown("### Users Management")
     
     df = get_all_users()
     
@@ -55,7 +55,7 @@ def render_users_management():
             render_add_form()
         return
     
-    col_table, col_details = st.columns([3, 2])
+    col_table, col_details = st.columns([4, 2])
     
     with col_table:
         display_df = df.copy()
@@ -99,9 +99,9 @@ def render_users_management():
             render_add_form()
     
     with col_details:
-        st.markdown("#### Full Details")
+        # st.markdown("#### Full Details")
         
-        user_options = ['(Select a user)'] + df['username'].tolist()
+        user_options = ['(View More Details)'] + df['username'].tolist()
         selected_user = st.selectbox(
             "Select user",
             user_options,
@@ -109,7 +109,7 @@ def render_users_management():
             label_visibility='collapsed'
         )
         
-        if selected_user != '(Select a user)':
+        if selected_user != '(View More Details)':
             user_data = df[df['username'] == selected_user].iloc[0]
             
             st.markdown(f"**Username:** {user_data['username']}")

@@ -20,7 +20,7 @@ def get_all_ocr_models():
 
 def render_ocr_models_management():
     """Render OCR models management interface with data editor."""
-    st.markdown("### OCR Models Management")
+    # st.markdown("### OCR Models Management")
     
     df = get_all_ocr_models()
     
@@ -33,7 +33,7 @@ def render_ocr_models_management():
             render_add_form()
         return
     
-    col_table, col_details = st.columns([3, 2])
+    col_table, col_details = st.columns([4, 2])
     
     with col_table:
         display_df = df.copy()
@@ -77,9 +77,9 @@ def render_ocr_models_management():
             render_add_form()
     
     with col_details:
-        st.markdown("#### Full Details")
+        # st.markdown("#### Full Details")
         
-        model_options = ['(Select a model)'] + df['name'].tolist()
+        model_options = ['(View More Details)'] + df['name'].tolist()
         selected_model = st.selectbox(
             "Select model",
             model_options,
@@ -87,7 +87,7 @@ def render_ocr_models_management():
             label_visibility='collapsed'
         )
         
-        if selected_model != '(Select a model)':
+        if selected_model != '(View More Details)':
             model_data = df[df['name'] == selected_model].iloc[0]
             
             st.markdown(f"**Name:** {model_data['name']}")

@@ -30,7 +30,7 @@ def get_organizations():
 
 def render_stamps_management():
     """Render stamps management interface with data editor."""
-    st.markdown("### Stamps Management")
+    # st.markdown("### Stamps Management")
     
     df = get_all_stamps()
     
@@ -43,7 +43,7 @@ def render_stamps_management():
             render_add_form()
         return
     
-    col_table, col_details = st.columns([3, 2])
+    col_table, col_details = st.columns([4, 2])
     
     with col_table:
         display_df = df.copy()
@@ -86,9 +86,9 @@ def render_stamps_management():
             render_add_form()
     
     with col_details:
-        st.markdown("#### Full Details")
+        # st.markdown("#### Full Details")
         
-        stamp_options = ['(Select a stamp)'] + [f"{row['name']} ({row['org_name']})" for _, row in df.iterrows()]
+        stamp_options = ['(View More Details)'] + [f"{row['name']} ({row['org_name']})" for _, row in df.iterrows()]
         selected_stamp = st.selectbox(
             "Select stamp",
             stamp_options,
@@ -96,7 +96,7 @@ def render_stamps_management():
             label_visibility='collapsed'
         )
         
-        if selected_stamp != '(Select a stamp)':
+        if selected_stamp != '(View More Details)':
             stamp_name = selected_stamp.split(' (')[0]
             org_name = selected_stamp.split(' (')[1].rstrip(')')
             stamp_data = df[(df['name'] == stamp_name) & (df['org_name'] == org_name)].iloc[0]

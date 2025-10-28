@@ -418,7 +418,7 @@ def render_level_table(df_all, level, organization_uuid, parent_filter_uuid=None
 
 def render_document_categories():
     """Main render function for document categories management."""
-    st.markdown("### Document Categories")
+    # st.markdown("### Document Categories")
     
     orgs_df = get_organizations()
     
@@ -426,21 +426,24 @@ def render_document_categories():
         st.warning("No organizations available. Please create an organization first.")
         return
     
-    org_options = orgs_df['name'].tolist()
-    selected_org = st.selectbox("Organization", org_options, key="doc_cat_org_select")
-    selected_org_uuid = orgs_df[orgs_df['name'] == selected_org]['organization_uuid'].iloc[0]
+    col1, col2 = st.columns([2, 5])
     
-    df_all = get_all_categories(selected_org_uuid)
-    
-    if df_all.empty:
-        st.info("No categories found for this organization. Start by adding a Level 1 category.")
-        if st.button("➕ Add Level 1 Category"):
-            st.session_state['adding_level_1'] = True
-            st.rerun()
+    with col1:
+        org_options = orgs_df['name'].tolist()
+        selected_org = st.selectbox("Organization", org_options, key="doc_cat_org_select")
+        selected_org_uuid = orgs_df[orgs_df['name'] == selected_org]['organization_uuid'].iloc[0]
         
-        if st.session_state.get('adding_level_1', False):
-            render_add_category_form(selected_org_uuid, 1, None)
-        return
+        df_all = get_all_categories(selected_org_uuid)
+        
+        if df_all.empty:
+            st.info("No categories found for this organization. Start by adding a Level 1 category.")
+            if st.button("➕ Add Level 1 Category"):
+                st.session_state['adding_level_1'] = True
+                st.rerun()
+            
+            if st.session_state.get('adding_level_1', False):
+                render_add_category_form(selected_org_uuid, 1, None)
+            return
     
     max_level = get_max_hierarchy_level(selected_org_uuid)
     
