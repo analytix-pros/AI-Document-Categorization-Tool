@@ -172,10 +172,10 @@ def render_add_category_form(organization_uuid, level, parent_category_uuid=None
         col_submit, col_cancel = st.columns([1, 1])
         
         with col_submit:
-            submit = st.form_submit_button("Add Category", use_container_width=True)
+            submit = st.form_submit_button("Add Category", width='stretch')
         
         with col_cancel:
-            cancel = st.form_submit_button("Cancel", use_container_width=True)
+            cancel = st.form_submit_button("Cancel", width='stretch')
         
         if cancel:
             st.session_state[f'adding_level_{level}'] = False
@@ -246,10 +246,10 @@ def render_edit_category_form(category_data, organization_uuid):
         col_save, col_cancel = st.columns([1, 1])
         
         with col_save:
-            submit = st.form_submit_button("Save Changes", use_container_width=True)
+            submit = st.form_submit_button("Save Changes", width='stretch')
         
         with col_cancel:
-            cancel = st.form_submit_button("Cancel", use_container_width=True)
+            cancel = st.form_submit_button("Cancel", width='stretch')
         
         if cancel:
             st.session_state['editing_category'] = None
@@ -297,7 +297,7 @@ def render_delete_confirmation(category_data):
         col1, col2 = st.columns(2)
         
         with col1:
-            if st.button("⚠️ Confirm Delete", type="primary", use_container_width=True):
+            if st.button("⚠️ Confirm Delete", type="primary", width='stretch'):
                 try:
                     category = Category()
                     category.delete(category_data['category_uuid'])
@@ -310,7 +310,7 @@ def render_delete_confirmation(category_data):
                     st.error(f"Error deleting: {str(e)}")
         
         with col2:
-            if st.button("Cancel", use_container_width=True):
+            if st.button("Cancel", width='stretch'):
                 st.session_state['deleting_category'] = None
                 st.rerun()
 
@@ -340,7 +340,7 @@ def render_level_table(df_all, level, organization_uuid, parent_filter_uuid=None
     display_df = prepare_display_dataframe(df_level, level)
     
     # Display the dataframe
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    st.dataframe(display_df, width='stretch', hide_index=True)
     
     # Create selectbox for row selection
     category_options = ["(None)"] + df_level['name'].tolist()
@@ -368,23 +368,23 @@ def render_level_table(df_all, level, organization_uuid, parent_filter_uuid=None
         
         with col1:
             if level < 3:  # Only show Add Child if not at max level
-                if st.button("➕ Add Child", key=f"add_child_{selected_uuid}", use_container_width=True):
+                if st.button("➕ Add Child", key=f"add_child_{selected_uuid}", width='stretch'):
                     st.session_state[f'adding_level_{level + 1}'] = True
                     st.session_state[f'adding_parent_{level + 1}'] = selected_uuid
                     st.rerun()
         
         with col2:
-            if st.button("✏️ Edit", key=f"edit_{selected_uuid}", use_container_width=True):
+            if st.button("✏️ Edit", key=f"edit_{selected_uuid}", width='stretch'):
                 st.session_state['editing_category'] = selected_uuid
                 st.rerun()
         
         with col3:
-            if st.button("🗑️ Delete", key=f"delete_{selected_uuid}", use_container_width=True):
+            if st.button("🗑️ Delete", key=f"delete_{selected_uuid}", width='stretch'):
                 st.session_state['deleting_category'] = selected_uuid
                 st.rerun()
         
         with col4:
-            if st.button("Clear Selection", key=f"clear_{level}", use_container_width=True):
+            if st.button("Clear Selection", key=f"clear_{level}", width='stretch'):
                 if f'selected_level_{level}' in st.session_state:
                     del st.session_state[f'selected_level_{level}']
                 if f'selected_level_{level}_name' in st.session_state:

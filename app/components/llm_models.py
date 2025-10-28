@@ -216,7 +216,7 @@ def render_add_form():
     st.markdown("---")
     st.markdown("#### Add New LLM Model")
     
-    with st.form("add_llm_form", clear_on_submit=True):
+    with st.form("add_llm_form", width='stretch'):
         col1, col2 = st.columns(2)
         
         with col1:

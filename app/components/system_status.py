@@ -120,7 +120,7 @@ def render_system_status_sidebar():
                 st.success("Ollama Installed")
             else:
                 st.error("Ollama Not Installed")
-                if st.button("Install Guide", key="show_ollama_install", use_container_width=True):
+                if st.button("Install Guide", key="show_ollama_install", width='stretch'):
                     st.session_state['show_ollama_install_guide'] = True
             
             # Service + Airplane Mode
@@ -151,7 +151,7 @@ def render_system_status_sidebar():
 
 
         # Refresh button at the top
-        if st.button("Refresh All", use_container_width=True):
+        if st.button("Refresh All", width='stretch'):
             st.session_state['system_status'] = check_all_dependencies()
             st.rerun()
 
@@ -205,7 +205,7 @@ def render_ocr_status(ocr_status):
                 st.error(f"{ocr_name} requires Python 3.10+")
                 st.info(f"Current: Python {sys.version_info.major}.{sys.version_info.minor}")
                 st.warning("Please upgrade Python")
-                if st.button("Close", key=f"close_{ocr_name}_inst", use_container_width=True):
+                if st.button("Close", key=f"close_{ocr_name}_inst", width='stretch'):
                     st.session_state[f'show_ocr_install_{ocr_name}'] = False
                     st.rerun()
                 continue
@@ -219,7 +219,7 @@ def render_ocr_status(ocr_status):
                 st.code(instructions['cli_command'], language='bash')
 
             if ocr_name.lower() in ['easyocr', 'paddleocr']:
-                if st.button(f"Install Now", key=f"do_install_{ocr_name}", use_container_width=True):
+                if st.button(f"Install Now", key=f"do_install_{ocr_name}", width='stretch'):
                     with st.spinner(f'Installing {ocr_name}...'):
                         result = install_python_ocr_package(ocr_name.lower())
                         if result['success'] and result['process'].returncode == 0:
@@ -235,10 +235,10 @@ def render_ocr_status(ocr_status):
                                     st.code(stderr)
             elif ocr_name.lower() == 'tesseract':
                 if 'url' in instructions:
-                    if st.button("Download Page", key=f"open_{ocr_name}_dl", use_container_width=True):
+                    if st.button("Download Page", key=f"open_{ocr_name}_dl", width='stretch'):
                         open_tesseract_download_page()
 
-            if st.button("Close", key=f"close_{ocr_name}_inst", use_container_width=True):
+            if st.button("Close", key=f"close_{ocr_name}_inst", width='stretch'):
                 st.session_state[f'show_ocr_install_{ocr_name}'] = False
                 st.rerun()
 
@@ -274,9 +274,9 @@ def render_ollama_install_guide():
     if 'cli_command' in instructions:
         st.code(instructions['cli_command'], language='bash')
     if 'url' in instructions:
-        if st.button("Open Download Page", key="open_ollama_dl", use_container_width=True):
+        if st.button("Open Download Page", key="open_ollama_dl", width='stretch'):
             open_ollama_download_page()
-    if st.button("Close", key="close_ollama_guide", use_container_width=True):
+    if st.button("Close", key="close_ollama_guide", width='stretch'):
         st.session_state['show_ollama_install_guide'] = False
         st.rerun()
 

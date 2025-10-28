@@ -71,7 +71,7 @@ def render_login_page(authenticate_callback):
         with st.form("login_form"):
             username = st.text_input("Username", placeholder="Enter your username")
             password = st.text_input("Password", type="password", placeholder="Enter your password")
-            submit = st.form_submit_button("Login", use_container_width=True)
+            submit = st.form_submit_button("Login", width='stretch')
             
             if submit:
                 print(f"=== LOGIN ATTEMPT: User '{username}' ===")

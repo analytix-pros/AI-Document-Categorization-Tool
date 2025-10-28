@@ -54,7 +54,7 @@ def render_stamps_management():
         edited_df = st.data_editor(
             display_df[['stamps_uuid', 'org_name'] + edit_columns],
             hide_index=True,
-            use_container_width=True,
+            width='stretch',
             disabled=['stamps_uuid', 'org_name'],
             column_config={
                 'stamps_uuid': st.column_config.TextColumn('UUID', width='small'),
@@ -71,14 +71,14 @@ def render_stamps_management():
             
             col1, col2, col3 = st.columns([1, 1, 2])
             with col1:
-                if st.button("💾 Save Changes", key="stamps_save_changes", type="primary", use_container_width=True):
+                if st.button("💾 Save Changes", key="stamps_save_changes", type="primary", width='stretch'):
                     save_changes(df, edited_df)
                     st.rerun()
             with col2:
-                if st.button("↩️ Discard", key="stamps_discard_changes", use_container_width=True):
+                if st.button("↩️ Discard", key="stamps_discard_changes", width='stretch'):
                     st.rerun()
         
-        if st.button("➕ Add New Stamp", key="stamps_add_new_button", use_container_width=True):
+        if st.button("➕ Add New Stamp", key="stamps_add_new_button", width='stretch'):
             st.session_state['adding_stamp'] = True
             st.rerun()
         
@@ -114,7 +114,7 @@ def render_stamps_management():
             st.caption(f"Created: {stamp_data['created_datetime']}")
             st.caption(f"Updated: {stamp_data['updated_datetime']}")
             
-            if st.button("✏️ Edit Description", key="stamps_edit_desc_button", use_container_width=True):
+            if st.button("✏️ Edit Description", key="stamps_edit_desc_button", width='stretch'):
                 st.session_state['editing_stamp_desc'] = stamp_data['stamps_uuid']
                 st.rerun()
             
@@ -166,7 +166,7 @@ def render_add_form():
     
     if orgs_df.empty:
         st.warning("No active organizations. Please create an organization first.")
-        if st.button("Cancel", key="stamps_cancel_no_orgs", use_container_width=True):
+        if st.button("Cancel", key="stamps_cancel_no_orgs", width='stretch'):
             st.session_state['adding_stamp'] = False
             st.rerun()
         return
@@ -186,10 +186,10 @@ def render_add_form():
         col_submit, col_cancel = st.columns(2)
         
         with col_submit:
-            submit = st.form_submit_button("Add Stamp", use_container_width=True)
+            submit = st.form_submit_button("Add Stamp", width='stretch')
         
         with col_cancel:
-            cancel = st.form_submit_button("Cancel", use_container_width=True)
+            cancel = st.form_submit_button("Cancel", width='stretch')
         
         if cancel:
             st.session_state['adding_stamp'] = False
@@ -230,7 +230,7 @@ def render_description_editor(stamp_data):
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.form_submit_button("💾 Save", use_container_width=True):
+            if st.form_submit_button("💾 Save", width='stretch'):
                 try:
                     stamp = Stamps()
                     stamp.update(
@@ -245,6 +245,6 @@ def render_description_editor(stamp_data):
                     st.error(f"Error: {str(e)}")
         
         with col2:
-            if st.form_submit_button("Cancel", use_container_width=True):
+            if st.form_submit_button("Cancel", width='stretch'):
                 st.session_state['editing_stamp_desc'] = None
                 st.rerun()

@@ -57,15 +57,15 @@ def render_documents_page():
                 st.info("Check sidebar for system status")
                 
                 # Disabled button
-                st.button("Start AI Analysis", type="primary", use_container_width=True, disabled=True)
+                st.button("Start AI Analysis", type="primary", width='stretch', disabled=True)
             else:
-                if st.button("Start AI Analysis", type="primary", use_container_width=True):
+                if st.button("Start AI Analysis", type="primary", width='stretch'):
                     # Set flag to switch to AI Analysis tab
                     st.session_state['switch_to_ai_analysis'] = True
                     st.session_state['start_categorization'] = True
                     st.rerun()
             
-            if st.button("Clear Upload", use_container_width=True):
+            if st.button("Clear Upload", width='stretch'):
                 st.session_state['uploaded_files'] = []
                 if 'start_categorization' in st.session_state:
                     del st.session_state['start_categorization']
@@ -100,4 +100,4 @@ def render_upload_history():
         }
         
         df = pd.DataFrame(example_data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width='stretch', hide_index=True)

@@ -44,7 +44,7 @@ def render_ocr_models_management():
         edited_df = st.data_editor(
             display_df[['ocr_models_uuid'] + edit_columns],
             hide_index=True,
-            use_container_width=True,
+            width='stretch',
             disabled=['ocr_models_uuid'],
             column_config={
                 'ocr_models_uuid': st.column_config.TextColumn('UUID', width='small'),
@@ -62,14 +62,14 @@ def render_ocr_models_management():
             
             col1, col2, col3 = st.columns([1, 1, 2])
             with col1:
-                if st.button("💾 Save Changes", key="ocr_save_changes", type="primary", use_container_width=True):
+                if st.button("💾 Save Changes", key="ocr_save_changes", type="primary", width='stretch'):
                     save_changes(df, edited_df)
                     st.rerun()
             with col2:
-                if st.button("↩️ Discard", key="ocr_discard_changes", use_container_width=True):
+                if st.button("↩️ Discard", key="ocr_discard_changes", width='stretch'):
                     st.rerun()
         
-        if st.button("➕ Add New Model", key="ocr_add_new_button", use_container_width=True):
+        if st.button("➕ Add New Model", key="ocr_add_new_button", width='stretch'):
             st.session_state['adding_ocr_model'] = True
             st.rerun()
         
@@ -162,10 +162,10 @@ def render_add_form():
         col_submit, col_cancel = st.columns(2)
         
         with col_submit:
-            submit = st.form_submit_button("Add Model", use_container_width=True)
+            submit = st.form_submit_button("Add Model", width='stretch')
         
         with col_cancel:
-            cancel = st.form_submit_button("Cancel", use_container_width=True)
+            cancel = st.form_submit_button("Cancel", width='stretch')
         
         if cancel:
             st.session_state['adding_ocr_model'] = False

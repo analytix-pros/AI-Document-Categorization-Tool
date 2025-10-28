@@ -21,7 +21,7 @@ def render_ai_analysis_page():
         status = get_processing_status()
         st.metric("Status", status)
     with col3:
-        if st.button("🗑️ Clear", use_container_width=True):
+        if st.button("🗑️ Clear", width='stretch'):
             clear_analysis_session()
             st.rerun()
     
@@ -75,10 +75,10 @@ def render_model_preparation():
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔄 Retry", use_container_width=True):
+            if st.button("🔄 Retry", width='stretch'):
                 st.rerun()
         with col2:
-            if st.button("⚠️ Continue Anyway", use_container_width=True):
+            if st.button("⚠️ Continue Anyway", width='stretch'):
                 st.session_state['models_prepared'] = True
                 st.rerun()
 
@@ -162,16 +162,16 @@ def render_categorization_results():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("Save Results", type="primary", use_container_width=True):
+        if st.button("Save Results", type="primary", width='stretch'):
             save_results_to_database()
             st.success("Results saved!")
     
     with col2:
-        if st.button("Export CSV", use_container_width=True):
+        if st.button("Export CSV", width='stretch'):
             export_results_csv()
     
     with col3:
-        if st.button("Process More", use_container_width=True):
+        if st.button("Process More", width='stretch'):
             clear_analysis_session()
             st.rerun()
 
@@ -220,13 +220,13 @@ def render_result_card(result, idx):
         btn_col1, btn_col2, btn_col3 = st.columns(3)
         
         with btn_col1:
-            if st.button("View/Edit", key=f"view_{idx}", use_container_width=True, type="secondary"):
+            if st.button("View/Edit", key=f"view_{idx}", width='stretch', type="secondary"):
                 st.session_state['viewing_result'] = idx
                 st.session_state['editing_mode'] = True
                 st.rerun()
         
         with btn_col2:
-            if st.button("Delete", key=f"delete_{idx}", use_container_width=True):
+            if st.button("Delete", key=f"delete_{idx}", width='stretch'):
                 if st.session_state.get(f'confirm_delete_{idx}', False):
                     # Actually delete
                     st.session_state['categorization_results'].pop(idx)
@@ -239,7 +239,7 @@ def render_result_card(result, idx):
                     st.rerun()
         
         with btn_col3:
-            if st.button("Confirm", key=f"confirm_{idx}", use_container_width=True, type="primary"):
+            if st.button("Confirm", key=f"confirm_{idx}", width='stretch', type="primary"):
                 result['confirmed'] = True
                 st.success(f"Confirmed!")
                 st.rerun()
@@ -401,7 +401,7 @@ def render_result_modal_dialog(result):
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("Save Changes", type="primary", use_container_width=True, key="modal_save"):
+        if st.button("Save Changes", type="primary", width='stretch', key="modal_save"):
             # Update result with new values
             result['category'] = new_category
             result['subcategory'] = new_subcategory if new_subcategory != "None" else None
@@ -412,12 +412,12 @@ def render_result_modal_dialog(result):
             st.rerun()
     
     with col2:
-        if st.button("Discard Changes", use_container_width=True, key="modal_discard"):
+        if st.button("Discard Changes", width='stretch', key="modal_discard"):
             del st.session_state['viewing_result']
             st.rerun()
     
     with col3:
-        if st.button("Delete Document", use_container_width=True, key="modal_delete"):
+        if st.button("Delete Document", width='stretch', key="modal_delete"):
             idx = st.session_state.get('viewing_result')
             if idx is not None:
                 st.session_state['categorization_results'].pop(idx)

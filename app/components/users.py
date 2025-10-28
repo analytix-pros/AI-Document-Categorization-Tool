@@ -66,7 +66,7 @@ def render_users_management():
         edited_df = st.data_editor(
             display_df[['user_uuid'] + edit_columns],
             hide_index=True,
-            use_container_width=True,
+            width='stretch',
             disabled=['user_uuid'],
             column_config={
                 'user_uuid': st.column_config.TextColumn('UUID', width='small'),
@@ -84,14 +84,14 @@ def render_users_management():
             
             col1, col2, col3 = st.columns([1, 1, 2])
             with col1:
-                if st.button("💾 Save Changes", key="users_save_changes", type="primary", use_container_width=True):
+                if st.button("💾 Save Changes", key="users_save_changes", type="primary", width='stretch'):
                     save_changes(df, edited_df)
                     st.rerun()
             with col2:
-                if st.button("↩️ Discard", key="users_discard_changes", use_container_width=True):
+                if st.button("↩️ Discard", key="users_discard_changes", width='stretch'):
                     st.rerun()
         
-        if st.button("➕ Add New User", key="users_add_new_button", use_container_width=True):
+        if st.button("➕ Add New User", key="users_add_new_button", width='stretch'):
             st.session_state['adding_user'] = True
             st.rerun()
         
@@ -125,11 +125,11 @@ def render_users_management():
             
             st.markdown("---")
             
-            if st.button("🔑 Reset Password", key="users_reset_pwd_button", use_container_width=True):
+            if st.button("🔑 Reset Password", key="users_reset_pwd_button", width='stretch'):
                 st.session_state['resetting_password'] = user_data['user_uuid']
                 st.rerun()
             
-            if st.button("✏️ Edit Role/Org", key="users_edit_details_button", use_container_width=True):
+            if st.button("✏️ Edit Role/Org", key="users_edit_details_button", width='stretch'):
                 st.session_state['editing_user_details'] = user_data['user_uuid']
                 st.rerun()
             
@@ -209,10 +209,10 @@ def render_add_form():
         col_submit, col_cancel = st.columns(2)
         
         with col_submit:
-            submit = st.form_submit_button("Add User", use_container_width=True)
+            submit = st.form_submit_button("Add User", width='stretch')
         
         with col_cancel:
-            cancel = st.form_submit_button("Cancel", use_container_width=True)
+            cancel = st.form_submit_button("Cancel", width='stretch')
         
         if cancel:
             st.session_state['adding_user'] = False
@@ -256,7 +256,7 @@ def render_password_reset(user_data):
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.form_submit_button("🔑 Reset", use_container_width=True):
+            if st.form_submit_button("🔑 Reset", width='stretch'):
                 if not new_password:
                     st.error("Password required")
                 elif new_password != confirm_password:
@@ -275,7 +275,7 @@ def render_password_reset(user_data):
                         st.error(f"Error: {str(e)}")
         
         with col2:
-            if st.form_submit_button("Cancel", use_container_width=True):
+            if st.form_submit_button("Cancel", width='stretch'):
                 st.session_state['resetting_password'] = None
                 st.rerun()
 
@@ -297,7 +297,7 @@ def render_details_editor(user_data):
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.form_submit_button("💾 Save", use_container_width=True):
+            if st.form_submit_button("💾 Save", width='stretch'):
                 try:
                     user = User()
                     role_uuid = roles_df[roles_df['name'] == role]['user_role_uuid'].iloc[0]
@@ -315,6 +315,6 @@ def render_details_editor(user_data):
                     st.error(f"Error: {str(e)}")
         
         with col2:
-            if st.form_submit_button("Cancel", use_container_width=True):
+            if st.form_submit_button("Cancel", width='stretch'):
                 st.session_state['editing_user_details'] = None
                 st.rerun()
