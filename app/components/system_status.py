@@ -109,7 +109,7 @@ def render_system_status_sidebar():
 
         # === MAIN EXPANDER: All status inside, collapsed by default ===
         with st.expander("System Status", expanded=False):
-            st.markdown("### LLM Status")
+            st.markdown("## LLM Status")
             
             # === Ollama Status ===
             ollama_status = status['ollama']
@@ -140,13 +140,13 @@ def render_system_status_sidebar():
             st.markdown("---")
 
             # === OCR Status ===
-            st.markdown("### OCR Models")
+            st.markdown("## OCR Models")
             render_ocr_status(status['ocr_status'])
 
             st.markdown("---")
 
             # === Hardware Info ===
-            st.markdown("### Hardware")
+            st.markdown("## Hardware")
             render_hardware_info(status.get('system_specs', {}))
 
 
@@ -250,20 +250,17 @@ def render_hardware_info(system_specs):
         st.info("⚠️ Hardware info unavailable")
         return
 
-    # Create 2-column grid
-    col1, col2 = st.columns(2)
+    st.markdown("**CPU**")
+    st.caption(f"{system_specs['cpu']['cores_physical']} cores")
 
-    with col1:
-        st.markdown("**CPU**")
-        st.markdown("**RAM**")
-        st.markdown("**GPU**")
-        st.markdown("**OS**")
+    st.markdown("**RAM**")
+    st.caption(f"{system_specs['memory']['total_gb']:.1f} GB")
 
-    with col2:
-        st.markdown(f"{system_specs['cpu']['cores_physical']} cores")
-        st.markdown(f"{system_specs['memory']['total_gb']:.1f} GB")
-        st.markdown("Available" if system_specs.get('gpu_available') else "Not detected")
-        st.markdown(f"{system_specs['os']['name']} {system_specs['os']['version']}")
+    st.markdown("**GPU**")
+    st.caption("Available" if system_specs.get('gpu_available') else "Not detected")
+
+    st.markdown("**OS**")
+    st.caption(f"{system_specs['os']['name']} {system_specs['os']['version']}")
 
 
 # === Ollama Install Guide ===
