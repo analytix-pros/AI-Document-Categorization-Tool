@@ -1,14 +1,234 @@
-"""AI Analysis component - condensed view for AI categorization process."""
+"""AI Analysis component - combines upload and AI categorization process."""
 import streamlit as st
-from app.components.system_status import prepare_ollama_models_background
+import json
+import time
+from app.components.system_status import prepare_ollama_models_background, check_system_ready_for_upload
+from database.db_models import Batch, Document, DocumentCategory
+from utils.utils_system_specs import get_system_specs
+from utils.ocr_processing import process_document_with_all_ocr_models
 
 
 def render_ai_analysis_page():
-    """Main render function for AI Analysis tab."""
+    """Main render function for combined AI Analysis tab."""
     
-    # Check if there are files to process
+    # Initialize session state for uploads
+    if 'uploaded_files' not in st.session_state:
+        st.session_state['uploaded_files'] = []
+    
+    # Check if analysis has been started
+    if not st.session_state.get('start_categorization', False):
+        # Show upload section
+        render_upload_section()
+    else:
+        # Show AI analysis workflow
+        render_analysis_workflow()
+
+
+def render_upload_section():
+    """Render document upload section."""
+    # Create two columns: upload section and ready to process section
+    col_upload, _, col_process = st.columns([5, 1, 4])
+    
+    with col_upload:
+        st.markdown("#### Upload Files")
+        
+        uploaded_files = st.file_uploader(
+            "Choose files",
+            accept_multiple_files=True,
+            key="files_upload",
+            type=['pdf'],
+            label_visibility="collapsed"
+        )
+        
+        if uploaded_files:
+            st.session_state['uploaded_files'] = uploaded_files
+    
+    with col_process:
+        # Show Ready to Process section if files are uploaded
+        if st.session_state['uploaded_files']:
+            file_count = len(st.session_state['uploaded_files'])
+            
+            st.markdown("#### Ready to Process")
+            st.info(f"{file_count} document(s) uploaded")
+            
+            # Check if system is ready
+            is_ready, missing_items = check_system_ready_for_upload()
+            
+            if not is_ready:
+                st.warning("⚠️ System not ready")
+                st.error("Missing requirements:")
+                for item in missing_items:
+                    st.write(f"• {item}")
+                st.info("Check sidebar for system status")
+                
+                st.button("Start AI Analysis", type="primary", width='stretch', disabled=True)
+            else:
+                if st.button("Start AI Analysis", type="primary", width='stretch'):
+                    # Create batch and insert documents into database
+                    create_batch_and_documents()
+                    st.session_state['start_categorization'] = True
+                    st.rerun()
+            
+            if st.button("Clear Upload", width='stretch'):
+                st.session_state['uploaded_files'] = []
+                clear_analysis_session()
+                st.rerun()
+        else:
+            st.markdown("#### Ready to Process")
+            st.info("Upload files to begin processing")
+
+
+def create_batch_and_documents():
+    """Create batch record and insert all uploaded documents into database."""
+    org_uuid = st.session_state.get('org_uuid', '')
+    user_uuid = st.session_state.get('user_uuid')
+    uploaded_files = st.session_state.get('uploaded_files', [])
+    
+    if not org_uuid or not user_uuid or not uploaded_files:
+        st.error("Missing required information to create batch")
+        return None
+    
+    # Get system specs for batch metadata
+    system_specs = get_system_specs()
+    system_metadata_json = json.dumps(system_specs)
+    
+    # Create batch record
+    batch = Batch()
+    batch_uuid = batch.insert(
+        organization_uuid=org_uuid,
+        automation_uuid=None,  # Manual upload, no automation
+        system_metadata=system_metadata_json,
+        status='started',
+        process_time=0,  # Will be updated when complete
+        created_by=user_uuid
+    )
+    
+    # Store batch info in session state
+    st.session_state['batch_uuid'] = batch_uuid
+    st.session_state['batch_start_time'] = time.time()
+    
+    # Insert each document into database
+    document_model = Document()
+    document_uuids = []
+    
+    for uploaded_file in uploaded_files:
+        # Read PDF bytes
+        pdf_bytes = uploaded_file.getvalue()
+        
+        # Insert document record
+        document_uuid = document_model.insert(
+            organization_uuid=org_uuid,
+            batch_uuid=batch_uuid,
+            upload_name=uploaded_file.name,
+            upload_folder=None,
+            pdf=pdf_bytes,
+            is_active=1,
+            created_by=user_uuid,
+            updated_by=user_uuid
+        )
+        
+        document_uuids.append(document_uuid)
+    
+    # Store document UUIDs in session state
+    st.session_state['document_uuids'] = document_uuids
+    
+    # Update batch status
+    batch.update(batch_uuid, status='processing')
+    
+    return batch_uuid
+
+
+def render_document_processing():
+    """Render condensed document processing step with OCR."""
+    st.markdown("### Step 2: Processing Documents")
+    
+    files = st.session_state['uploaded_files']
+    document_uuids = st.session_state.get('document_uuids', [])
+    total_files = len(files)
+    
+    # Initialize processing state
+    if 'current_file_index' not in st.session_state:
+        st.session_state['current_file_index'] = 0
+        st.session_state['categorization_results'] = []
+    
+    current_index = st.session_state['current_file_index']
+    
+    # Progress bar
+    progress = current_index / total_files
+    st.progress(progress, text=f"Processing {current_index}/{total_files} documents")
+    
+    # Current file processing
+    if current_index < total_files:
+        current_file = files[current_index]
+        current_doc_uuid = document_uuids[current_index]
+        
+        st.info(f"📄 Analyzing: {current_file.name}")
+        
+        # Process with OCR models
+        pdf_bytes = current_file.getvalue()
+        ocr_results = process_document_with_all_ocr_models(pdf_bytes)
+        
+        # Store OCR results in document_category table
+        org_uuid = st.session_state.get('org_uuid')
+        user_uuid = st.session_state.get('user_uuid')
+        
+        doc_category = DocumentCategory()
+        doc_category_uuid = doc_category.insert(
+            organization_uuid=org_uuid,
+            document_uuid=current_doc_uuid,
+            category_uuid=None,  # Will be set after LLM categorization
+            stamps_uuid=None,
+            category_confidence=None,
+            all_category_confidence=None,
+            ocr_text=json.dumps(ocr_results),  # Store as JSON
+            ocr_text_confidence=None,
+            override_category_uuid=None,
+            override_context=None,
+            is_active=1,
+            created_by=user_uuid,
+            updated_by=user_uuid
+        )
+        
+        # TODO: Add LLM categorization here
+        # For now, use placeholder
+        result = {
+            'filename': current_file.name,
+            'document_uuid': current_doc_uuid,
+            'document_category_uuid': doc_category_uuid,
+            'category': '[AI Category Placeholder]',
+            'confidence': 0.85,
+            'subcategory': '[Subcategory Placeholder]',
+            'stamp_detected': 'FILED',
+            'ocr_text': ocr_results
+        }
+        
+        st.session_state['categorization_results'].append(result)
+        st.session_state['current_file_index'] += 1
+        
+        st.rerun()
+    else:
+        # Processing complete - update batch
+        batch_uuid = st.session_state.get('batch_uuid')
+        batch_start_time = st.session_state.get('batch_start_time')
+        
+        if batch_uuid and batch_start_time:
+            process_time = int(time.time() - batch_start_time)
+            batch = Batch()
+            batch.update(batch_uuid, status='completed', process_time=process_time)
+        
+        st.success(f"✅ Processed {total_files} documents")
+        st.session_state['processing_complete'] = True
+        st.rerun()
+
+
+def render_analysis_workflow():
+    """Render AI analysis workflow after files are uploaded."""
+    
     if not st.session_state.get('uploaded_files'):
-        st.info("📁 No documents uploaded. Please upload files in the Documents tab.")
+        st.info("📁 No documents uploaded.")
+        if st.button("Back to Upload"):
+            st.session_state['start_categorization'] = False
+            st.rerun()
         return
     
     files = st.session_state['uploaded_files']
@@ -182,13 +402,13 @@ def render_result_card(result, idx):
     
     # Determine confidence color
     if confidence >= 0.8:
-        conf_color = "#28a745"  # Green
+        conf_color = "#28a745"
         conf_emoji = "🟢"
     elif confidence >= 0.6:
-        conf_color = "#ffc107"  # Yellow
+        conf_color = "#ffc107"
         conf_emoji = "🟡"
     else:
-        conf_color = "#dc3545"  # Red
+        conf_color = "#dc3545"
         conf_emoji = "🔴"
     
     # Card container with border
@@ -216,7 +436,7 @@ def render_result_card(result, idx):
         </div>
         """, unsafe_allow_html=True)
         
-        # Action buttons (3 columns, no icons)
+        # Action buttons
         btn_col1, btn_col2, btn_col3 = st.columns(3)
         
         with btn_col1:
@@ -228,13 +448,11 @@ def render_result_card(result, idx):
         with btn_col2:
             if st.button("Delete", key=f"delete_{idx}", width='stretch'):
                 if st.session_state.get(f'confirm_delete_{idx}', False):
-                    # Actually delete
                     st.session_state['categorization_results'].pop(idx)
                     st.session_state[f'confirm_delete_{idx}'] = False
                     st.success(f"Deleted {result['filename']}")
                     st.rerun()
                 else:
-                    # Ask for confirmation
                     st.session_state[f'confirm_delete_{idx}'] = True
                     st.rerun()
         
@@ -253,18 +471,16 @@ def render_result_card(result, idx):
 def render_result_modal_dialog(result):
     """Render modal dialog for viewing/editing classification details."""
     
-    # st.markdown("### Classification Information")
     st.markdown("---")
     
     # Top section: File info
     r1_col1, r1_col2, r1_col3 = st.columns(3)
     
     with r1_col1:
-        # st.markdown("**File Information**")
         st.text_input("Filename", value=result['filename'], disabled=True, key="modal_filename")
     
     with r1_col2:
-        # Editable category dropdown (placeholder - replace with actual categories from DB)
+        # Editable category dropdown
         categories = ["Garnishments", "Transcript of Judgments", "Service", "Invoices", "Contracts"]
         current_category_idx = categories.index(result['category']) if result['category'] in categories else 0
         
@@ -274,8 +490,9 @@ def render_result_modal_dialog(result):
             index=current_category_idx,
             key="modal_category"
         )
+    
     with r1_col3:
-        # Subcategory (if applicable)
+        # Subcategory
         subcategories = ["Wage Garn", "Bank Garn", "Accepted TOJ", "Rejected TOJ"]
         new_subcategory = st.selectbox(
             "Subcategory",
@@ -283,14 +500,11 @@ def render_result_modal_dialog(result):
             key="modal_subcategory"
         )
 
-    # st.markdown("---")
-
     r2_col1, r2_col2, r2_col3 = st.columns([2, 1, 7])
     
     with r2_col1:
         st.markdown("**Confidence Levels:**")
         
-        # Highest confidence
         confidence = result['confidence']
         if confidence >= 0.8:
             conf_color = "🟢"
@@ -302,7 +516,6 @@ def render_result_modal_dialog(result):
         st.metric("Highest Confidence", f"{conf_color} {confidence:.1%}")
 
     with r2_col2:
-        # Vertical line using CSS
         st.markdown(
             """
             <div style="
@@ -330,21 +543,11 @@ def render_result_modal_dialog(result):
         if n_items == 0:
             st.caption("No models evaluated")
         else:
-            # Responsive grid: max 3 per row in col3 (fits nicely)
             cols = st.columns(min(n_items, 3))
             for i, (model_name, conf) in enumerate(items):
                 with cols[i % len(cols)]:
-                    # Optional: color-code metric
-                    delta_color = "normal"
-                    if conf >= 0.8:
-                        delta_color = "normal"
-                    elif conf >= 0.6:
-                        delta_color = "normal"
-                    else:
-                        delta_color = "normal"  # or use "inverse" for red
-                    
                     st.metric(
-                        label=model_name.split(':')[0],  # Shorten name if needed
+                        label=model_name.split(':')[0],
                         value=f"{conf:.1%}",
                         delta=None
                     )
@@ -354,10 +557,8 @@ def render_result_modal_dialog(result):
     r3_col1, r3_col2 = st.columns([4, 6])
 
     with r3_col1:
-    # OCR Text section
         st.markdown("**Extracted Text (OCR)**")
         
-        # Large text box with OCR text
         ocr_text = result.get('ocr_text', 
             "This is placeholder OCR text extracted from the document.\n\n" +
             "In a real implementation, this would contain the full text extracted " +
@@ -375,19 +576,13 @@ def render_result_modal_dialog(result):
         )
     
     with r3_col2:    
-        # PDF Preview section
         st.markdown("**Document Preview**")
         
-        # Placeholder for PDF preview
-        # In real implementation, you would render the actual PDF here
         pdf_data = result.get('pdf_data', None)
         
         if pdf_data:
-            # Display actual PDF
             st.write("PDF preview would be rendered here using st.write() or an iframe")
-            # Example: st.write(pdf_data)
         else:
-            # Placeholder
             st.info("📄 PDF preview would be displayed here\n\n" +
                 "In the real implementation, this would show:\n" +
                 "- Rendered PDF pages\n" +
@@ -402,7 +597,6 @@ def render_result_modal_dialog(result):
     
     with col1:
         if st.button("Save Changes", type="primary", width='stretch', key="modal_save"):
-            # Update result with new values
             result['category'] = new_category
             result['subcategory'] = new_subcategory if new_subcategory != "None" else None
             result['ocr_text'] = new_ocr_text
@@ -430,7 +624,6 @@ def save_results_to_database():
     """Save categorization results to database (placeholder)."""
     # TODO: Implement actual database save logic
     results = st.session_state.get('categorization_results', [])
-    # Save to database here
     pass
 
 
@@ -463,7 +656,8 @@ def clear_analysis_session():
         'current_file_index',
         'categorization_results',
         'viewing_result',
-        'start_categorization'
+        'start_categorization',
+        'uploaded_files'
     ]
     
     for key in keys_to_clear:

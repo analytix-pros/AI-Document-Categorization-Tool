@@ -659,7 +659,11 @@ class Batch:
         c = conn.cursor()
         c.execute("PRAGMA foreign_keys = ON")
         now = get_utc_datetime()
-        batch_uuid = generate_uuid()
+        
+        # Generate UUID using organization_uuid and automation_uuid
+        input_string = f"{organization_uuid}{automation_uuid}" if automation_uuid else f"{organization_uuid}"
+        batch_uuid = generate_uuid(input_string)
+        
         try:
             c.execute(
                 """
@@ -721,20 +725,24 @@ class Document:
     def __init__(self):
         self.table = "document"
 
-    def insert(self, organization_uuid, upload_name, upload_folder=None, pdf=None, is_active=1, created_by=None, updated_by=None):
+    def insert(self, organization_uuid, batch_uuid, upload_name, upload_folder=None, pdf=None, is_active=1, created_by=None, updated_by=None):
         """Insert a new document record."""
         conn = create_connection()
         c = conn.cursor()
         c.execute("PRAGMA foreign_keys = ON")
         now = get_utc_datetime()
-        document_uuid = generate_uuid()
+        
+        # Generate UUID using organization_uuid, batch_uuid, and upload_name
+        input_string = f"{organization_uuid}{batch_uuid}{upload_name}"
+        document_uuid = generate_uuid(input_string)
+        
         try:
             c.execute(
                 """
-                INSERT INTO document (document_uuid, organization_uuid, upload_name, upload_folder, pdf, is_active, created_datetime, created_by, updated_datetime, updated_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO document (document_uuid, organization_uuid, batch_uuid, upload_name, upload_folder, pdf, is_active, created_datetime, created_by, updated_datetime, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (document_uuid, organization_uuid, upload_name, upload_folder, pdf, is_active, now, created_by, now, updated_by)
+                (document_uuid, organization_uuid, batch_uuid, upload_name, upload_folder, pdf, is_active, now, created_by, now, updated_by)
             )
             conn.commit()
             return document_uuid
@@ -879,6 +887,116 @@ class DocumentCategory:
 
     def delete(self, document_category_uuid):
         """Soft delete a document_category by setting is_active to 0."""
+        self.update(document_category_uuid, is_active=0)
+
+
+class DocumentCategory:
+    """Database model for document_category table."""
+    
+    def __init__(self):
+        self.table = "document_category"
+
+    def insert(self, organization_uuid, document_uuid, category_uuid=None, stamps_uuid=None,
+               category_confidence=None, all_category_confidence=None, ocr_text=None,
+               ocr_text_confidence=None, override_category_uuid=None, override_context=None,
+               is_active=1, created_by=None, updated_by=None):
+        """Insert a new document_category record."""
+        conn = create_connection()
+        c = conn.cursor()
+        c.execute("PRAGMA foreign_keys = ON")
+        now = get_utc_datetime()
+        
+        # Generate UUID using organization_uuid and document_uuid
+        input_string = f"{organization_uuid}{document_uuid}"
+        document_category_uuid = generate_uuid(input_string)
+        
+        try:
+            c.execute(
+                """
+                INSERT INTO document_category (
+                    document_category_uuid, organization_uuid, document_uuid, category_uuid,
+                    stamps_uuid, category_confidence, all_category_confidence, ocr_text,
+                    ocr_text_confidence, override_category_uuid, override_context, is_active,
+                    created_datetime, created_by, updated_datetime, updated_by
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (document_category_uuid, organization_uuid, document_uuid, category_uuid,
+                 stamps_uuid, category_confidence, all_category_confidence, ocr_text,
+                 ocr_text_confidence, override_category_uuid, override_context, is_active,
+                 now, created_by, now, updated_by)
+            )
+            conn.commit()
+            return document_category_uuid
+        except sqlite3.IntegrityError as e:
+            raise ValueError(f"Failed to insert document_category: {str(e)}")
+        finally:
+            conn.close()
+
+    def update(self, document_category_uuid, category_uuid=None, stamps_uuid=None,
+               category_confidence=None, all_category_confidence=None, ocr_text=None,
+               ocr_text_confidence=None, override_category_uuid=None, override_context=None,
+               is_active=None, updated_by=None):
+        """Update an existing document_category record."""
+        conn = create_connection()
+        c = conn.cursor()
+        c.execute("PRAGMA foreign_keys = ON")
+        now = get_utc_datetime()
+        updates = []
+        params = []
+        
+        if category_uuid is not None:
+            updates.append("category_uuid = ?")
+            params.append(category_uuid)
+        if stamps_uuid is not None:
+            updates.append("stamps_uuid = ?")
+            params.append(stamps_uuid)
+        if category_confidence is not None:
+            updates.append("category_confidence = ?")
+            params.append(category_confidence)
+        if all_category_confidence is not None:
+            updates.append("all_category_confidence = ?")
+            params.append(all_category_confidence)
+        if ocr_text is not None:
+            updates.append("ocr_text = ?")
+            params.append(ocr_text)
+        if ocr_text_confidence is not None:
+            updates.append("ocr_text_confidence = ?")
+            params.append(ocr_text_confidence)
+        if override_category_uuid is not None:
+            updates.append("override_category_uuid = ?")
+            params.append(override_category_uuid)
+        if override_context is not None:
+            updates.append("override_context = ?")
+            params.append(override_context)
+        if is_active is not None:
+            updates.append("is_active = ?")
+            params.append(is_active)
+        if updated_by is not None:
+            updates.append("updated_by = ?")
+            params.append(updated_by)
+        
+        if not updates:
+            conn.close()
+            return
+        
+        updates.append("updated_datetime = ?")
+        params.append(now)
+        params.append(document_category_uuid)
+        
+        try:
+            c.execute(
+                f"UPDATE document_category SET {', '.join(updates)} WHERE document_category_uuid = ?",
+                params
+            )
+            conn.commit()
+        except sqlite3.IntegrityError as e:
+            raise ValueError(f"Failed to update document_category: {str(e)}")
+        finally:
+            conn.close()
+
+    def delete(self, document_category_uuid):
+        """Soft delete a document_category record by setting is_active to 0."""
         self.update(document_category_uuid, is_active=0)
 
 

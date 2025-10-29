@@ -26,7 +26,7 @@ def get_all_llm_models():
 def render_llm_models_management():
     """Render LLM models management interface with data editor."""
     log_page_view(st.session_state, '/admin/llm_models')
-    print("=== LLM MODELS MANAGEMENT PAGE ===")
+    # print("=== LLM MODELS MANAGEMENT PAGE ===")
     
     # st.markdown("### LLM Models Management")
     
@@ -59,7 +59,7 @@ def render_llm_models_management():
         edited_df = st.data_editor(
             display_df[['llm_model_uuid'] + edit_columns],
             hide_index=True,
-            use_container_width=True,
+            width='stretch',
             disabled=['llm_model_uuid'],
             column_config={
                 'llm_model_uuid': st.column_config.TextColumn('UUID', width='small'),
@@ -81,15 +81,15 @@ def render_llm_models_management():
             
             col1, col2, col3 = st.columns([1, 1, 2])
             with col1:
-                if st.button("💾 Save Changes", key="llm_save_changes", type="primary", use_container_width=True):
+                if st.button("💾 Save Changes", key="llm_save_changes", type="primary", width='stretch'):
                     save_changes(df, edited_df)
                     st.rerun()
             with col2:
-                if st.button("↩️ Discard", key="llm_discard_changes", use_container_width=True):
+                if st.button("↩️ Discard", key="llm_discard_changes", width='stretch'):
                     st.rerun()
         
         # Add new button
-        if st.button("➕ Add New Model", key="llm_add_new_button", use_container_width=True):
+        if st.button("➕ Add New Model", key="llm_add_new_button", width='stretch'):
             st.session_state['adding_llm_model'] = True
             st.rerun()
         
@@ -129,7 +129,7 @@ def render_llm_models_management():
             st.caption(f"Updated: {model_data['updated_datetime']}")
             
             # Edit description button
-            if st.button("✏️ Edit Description", key="llm_edit_desc_button", use_container_width=True):
+            if st.button("✏️ Edit Description", key="llm_edit_desc_button", width='stretch'):
                 st.session_state['editing_description'] = model_data['llm_model_uuid']
                 st.rerun()
             
@@ -236,10 +236,10 @@ def render_add_form():
         col_submit, col_cancel = st.columns(2)
         
         with col_submit:
-            submit = st.form_submit_button("Add Model", use_container_width=True)
+            submit = st.form_submit_button("Add Model", width='stretch')
         
         with col_cancel:
-            cancel = st.form_submit_button("Cancel", use_container_width=True)
+            cancel = st.form_submit_button("Cancel", width='stretch')
         
         if cancel:
             st.session_state['adding_llm_model'] = False
@@ -284,7 +284,7 @@ def render_description_editor(model_data):
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.form_submit_button("💾 Save", use_container_width=True):
+            if st.form_submit_button("💾 Save", width='stretch'):
                 try:
                     llm_model = LLMModel()
                     llm_model.update(
@@ -300,6 +300,6 @@ def render_description_editor(model_data):
                     st.error(f"Error: {str(e)}")
         
         with col2:
-            if st.form_submit_button("Cancel", use_container_width=True):
+            if st.form_submit_button("Cancel", width='stretch'):
                 st.session_state['editing_description'] = None
                 st.rerun()
