@@ -207,9 +207,7 @@ TABLES = [
             page TEXT,
             message TEXT,
             level TEXT,
-            created_datetime TEXT,
-            FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid),
-            FOREIGN KEY (user_uuid) REFERENCES user (user_uuid)
+            created_datetime TEXT
         )
         """,
         "indexes": [
@@ -228,6 +226,7 @@ TABLES = [
             automation_uuid BLOB,
             system_metadata TEXT,
             status TEXT,
+            number_of_files INTEGER,
             process_time INTEGER,
             created_datetime TEXT,
             created_by BLOB,
@@ -307,7 +306,6 @@ TABLES = [
 ]
 
 # Define sample data inserts with UUID keys
-# Define sample data inserts with UUID keys
 INSERTS = [
     {
         "table": "organization",
@@ -362,6 +360,7 @@ INSERTS = [
         "uuid_keys": {"user_uuid": ["username"]},
         "data": [
             {
+                "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae",
                 "user_role_uuid": "bace0701-15e3-5144-97c5-47487d543032",
                 "username": "cameron",
                 "pwd": "da3ba40c-1af9-5704-8dfb-9b1571aa6ae4",
@@ -371,6 +370,7 @@ INSERTS = [
                 "role_name": "admin"
             },
             {
+                "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae",
                 "user_role_uuid": "bace0701-15e3-5144-97c5-47487d543032",
                 "username": "bryan",
                 "pwd": "9eeb22a2-420f-5945-a4de-d0a382f0eb4e",
@@ -435,7 +435,7 @@ INSERTS = [
             "default_timeout", "gpu_required", "gpu_optional", "min_vram_gb",
             "is_active", "created_datetime", "updated_datetime"
         ],
-        "uuid_keys": {"llm_model_uuid": ["name"]},
+        "uuid_keys": {"llm_model_uuid": ["system", "name"]},
         "data": [
             {
                 "name": "granite3.2-vision",
@@ -536,7 +536,7 @@ INSERTS = [
                 "name": "Garnishments",
                 "hierarchy_level": 1,
                 "use_stamps": 0,
-                "stamps_name": None,
+                "stamps_uuid": None,
                 "description": "Documents related to wage or bank garnishments",
                 "keywords": "['garnishment', 'garnish', 'wage', 'bank account', 'earnings']",
                 "min_threshold": 0.75
@@ -547,7 +547,7 @@ INSERTS = [
                 "name": "Transcript of Judgments",
                 "hierarchy_level": 1,
                 "use_stamps": 0,
-                "stamps_name": None,
+                "stamps_uuid": None,
                 "description": "Court transcripts of judgments",
                 "keywords": "['transcript', 'judgment', 'TOJ', 'court', 'clerk']",
                 "min_threshold": 0.75
@@ -558,7 +558,7 @@ INSERTS = [
                 "name": "Service",
                 "hierarchy_level": 1,
                 "use_stamps": 0,
-                "stamps_name": None,
+                "stamps_uuid": None,
                 "description": "Service of process documents",
                 "keywords": "['service', 'served', 'process server', 'certified mail', 'summons']",
                 "min_threshold": 0.75
@@ -569,7 +569,7 @@ INSERTS = [
                 "name": "Wage Garn",
                 "hierarchy_level": 2,
                 "use_stamps": 0,
-                "stamps_name": None,
+                "stamps_uuid": None,
                 "description": "Wage garnishment documents",
                 "keywords": "['wage', 'employer', 'earnings', 'payroll', 'salary']",
                 "min_threshold": 0.75
@@ -580,7 +580,7 @@ INSERTS = [
                 "name": "Bank Garn",
                 "hierarchy_level": 2,
                 "use_stamps": 0,
-                "stamps_name": None,
+                "stamps_uuid": None,
                 "description": "Bank garnishment documents",
                 "keywords": "['bank', 'account', 'financial institution', 'deposit', 'checking', 'savings']",
                 "min_threshold": 0.75
@@ -591,7 +591,7 @@ INSERTS = [
                 "name": "Accepted TOJ",
                 "hierarchy_level": 2,
                 "use_stamps": 0,
-                "stamps_name": None,
+                "stamps_uuid": None,
                 "description": "Accepted transcript of judgment",
                 "keywords": "['accepted', 'approved', 'filed', 'recorded', 'issued']",
                 "min_threshold": 0.75
@@ -602,7 +602,7 @@ INSERTS = [
                 "name": "Rejected TOJ",
                 "hierarchy_level": 2,
                 "use_stamps": 0,
-                "stamps_name": None,
+                "stamps_uuid": None,
                 "description": "Rejected transcript of judgment",
                 "keywords": "['rejected', 'denied', 'insufficient', 'incomplete']",
                 "min_threshold": 0.75
@@ -613,7 +613,7 @@ INSERTS = [
                 "name": "Served",
                 "hierarchy_level": 2,
                 "use_stamps": 0,
-                "stamps_name": None,
+                "stamps_uuid": None,
                 "description": "Successfully served documents",
                 "keywords": "['served', 'delivered', 'receipt', 'signed', 'accepted']",
                 "min_threshold": 0.75
@@ -624,7 +624,7 @@ INSERTS = [
                 "name": "Non-Served",
                 "hierarchy_level": 2,
                 "use_stamps": 0,
-                "stamps_name": None,
+                "stamps_uuid": None,
                 "description": "Documents that were not successfully served",
                 "keywords": "['undelivered', 'refused', 'unable to serve', 'not served', 'returned']",
                 "min_threshold": 0.75
@@ -635,7 +635,7 @@ INSERTS = [
                 "name": "Issued TOJ",
                 "hierarchy_level": 3,
                 "use_stamps": 1,
-                "stamps_name": "ISSUED",
+                "stamps_uuid": "ed4a1a26-e3c9-551c-8c5f-cf247da1e332",
                 "description": "Issued transcript of judgment",
                 "keywords": "['issued', 'date of issue']",
                 "min_threshold": 0.75
@@ -646,7 +646,7 @@ INSERTS = [
                 "name": "Recorded TOJ",
                 "hierarchy_level": 3,
                 "use_stamps": 1,
-                "stamps_name": "RECORDED",
+                "stamps_uuid": "92e44bd0-fae9-5cdd-9949-cfa283762f2f",
                 "description": "Recorded transcript of judgment",
                 "keywords": "['recorded', 'recording', 'book', 'page']",
                 "min_threshold": 0.75
@@ -657,7 +657,7 @@ INSERTS = [
                 "name": "Exemplified TOJ",
                 "hierarchy_level": 3,
                 "use_stamps": 1,
-                "stamps_name": "EXEMPLIFIED",
+                "stamps_uuid": "1af90054-7a28-5eff-ae6b-0a0718adc8bd",
                 "description": "Exemplified transcript of judgment",
                 "keywords": "['exemplified', 'exemplification']",
                 "min_threshold": 0.75
@@ -668,7 +668,7 @@ INSERTS = [
                 "name": "Certified TOJ",
                 "hierarchy_level": 3,
                 "use_stamps": 1,
-                "stamps_name": "CERTIFIED",
+                "stamps_uuid": "05faf87d-dd46-5fda-adbf-037ade64e28a",
                 "description": "Certified transcript of judgment",
                 "keywords": "['certified', 'certification', 'true copy', 'certified copy']",
                 "min_threshold": 0.75

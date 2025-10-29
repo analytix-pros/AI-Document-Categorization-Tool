@@ -94,14 +94,19 @@ def create_batch_and_documents():
     
     # Create batch record
     batch = Batch()
-    batch_uuid = batch.insert(
-        organization_uuid=org_uuid,
-        automation_uuid=None,  # Manual upload, no automation
-        system_metadata=system_metadata_json,
-        status='started',
-        process_time=0,  # Will be updated when complete
-        created_by=user_uuid
-    )
+    batch_data = {
+        "organization_uuid": org_uuid,
+        "automation_uuid": None,  # Manual upload
+        "system_metadata": system_metadata_json,
+        "status": "started",
+        "process_time": 0,
+        "created_by": user_uuid
+    }
+
+    print(json.dumps(batch_data, indent=2, default=str))
+    batch_uuid = Batch().insert(**batch_data)
+
+    # batch_uuid = Batch().insert(batch_data) # If insert() expects a dict → pass directly
     
     # Store batch info in session state
     st.session_state['batch_uuid'] = batch_uuid

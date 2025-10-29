@@ -25,7 +25,7 @@ def get_all_llm_models():
 
 def render_llm_models_management():
     """Render LLM models management interface with data editor."""
-    log_page_view(st.session_state, '/admin/llm_models')
+    # log_page_view(st.session_state, '/admin/llm_models')
     # print("=== LLM MODELS MANAGEMENT PAGE ===")
     
     # st.markdown("### LLM Models Management")
