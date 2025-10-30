@@ -3,8 +3,10 @@ import sqlite3
 import os
 import logging
 import random
+import json
 
 from config.config import FULL_DATABASE_FILE_PATH
+from utils.utils_system_specs import get_system_specs
 from utils.utils_uuid import generate_uuid
 from utils.utils import get_utc_datetime
 
@@ -37,8 +39,8 @@ class Logging:
 INSERT INTO logging (logging_uuid, organization_uuid, user_uuid, page, message, level, created_datetime)
 VALUES ('{logging_uuid}', '{organization_uuid}', '{user_uuid}', '{page}', '{message}', '{level}', '{now}')
 """
-        print(f"{logging_uuid}\t{page}\t{random_number}")
-        print(f"{logging_sql}")
+        # print(f"{logging_uuid}\t{page}\t{random_number}")
+        # print(f"{logging_sql}")
 
         try:
             c.execute(logging_sql)
@@ -105,6 +107,10 @@ def get_logger_from_session(session_state, console_output=False):
     org_uuid = session_state.get('org_uuid')
     user_uuid = session_state.get('user_uuid')
     return AppLogger(org_uuid, user_uuid, console_output)
+
+
+def log_landing_page(session_state, page_name): 
+    get_logger_from_session(session_state).info(page_name, json.dumps(get_system_specs(), indent=2, default=str))
 
 
 def log_page_view(session_state, page_name):

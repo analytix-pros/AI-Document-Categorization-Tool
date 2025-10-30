@@ -9,6 +9,7 @@ utils
 # Other
 # ============================
 streamlit==1.50.0
+st-mui-table
 sqlalchemy
 opencv-python
 numpy==1.26.3
@@ -36,6 +37,7 @@ easyocr
 paddleocr
 paddlepaddle
 pymupdf
+pypdfium2
 
 # ============================
 # File Formats / Serialization
@@ -53,6 +55,7 @@ instructor
 # ============================
 # Poppler dependencies
 # ============================
+# poppler-cpp
 # meson
 # cmake
 # python-poppler

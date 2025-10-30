@@ -1,7 +1,19 @@
-"""LLM installation utilities for Ollama."""
+"""LLM installation utilities for Ollama – with forced airplane mode."""
 import subprocess
 import platform
 import webbrowser
+import time
+import urllib.request
+import os
+
+
+def _ollama_http_check():
+    """Fast check if Ollama server is responding via HTTP."""
+    try:
+        urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=1)
+        return True
+    except Exception:
+        return False
 
 
 def get_ollama_install_instructions():
@@ -83,6 +95,23 @@ def install_ollama_model(model_name):
     Returns:
         dict: Installation result
     """
+    # Check if model already exists
+    try:
+        result = subprocess.run(
+            ['ollama', 'list'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0 and model_name.split(':')[0] in result.stdout:
+            return {
+                'success': True,
+                'process': None,
+                'message': f'Model {model_name} already installed'
+            }
+    except:
+        pass  # Continue to pull
+
     try:
         process = subprocess.Popen(
             ['ollama', 'pull', model_name],
@@ -117,42 +146,62 @@ def check_ollama_service_running():
     Returns:
         bool: True if service is running
     """
-    try:
-        result = subprocess.run(
-            ['ollama', 'list'],
-            capture_output=True,
-            timeout=5
-        )
-        return result.returncode == 0
-    except:
-        return False
+    return _ollama_http_check()
 
 
 def start_ollama_service():
     """
-    Attempt to start Ollama service.
+    Attempt to start Ollama service in airplane mode.
     
     Returns:
         dict: Start result
     """
     system = platform.system()
     
+    # === FORCE AIRPLANE MODE ===
+    env = os.environ.copy()
+    env["OLLAMA_HOST"] = "127.0.0.1:11434"
+    env["OLLAMA_TURBO_DISABLED"] = "1"
+    env["OLLAMA_SEARCH_DISABLED"] = "1"
+    env["OLLAMA_NOPROMPT"] = "1"
+
     try:
-        if system == 'Darwin' or system == 'Linux':
+        if system in ['Darwin', 'Linux']:
             subprocess.Popen(
                 ['ollama', 'serve'],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=env,
+                start_new_session=True
             )
-            return {
-                'success': True,
-                'message': 'Ollama service started'
-            }
         elif system == 'Windows':
+            subprocess.Popen(
+                ['ollama', 'serve'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=env,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+        else:
             return {
                 'success': False,
-                'message': 'Please start Ollama from Start Menu'
+                'message': f'Unsupported OS: {system}'
             }
+
+        # Wait up to 10 seconds for server to start
+        for _ in range(50):
+            if check_ollama_service_running():
+                return {
+                    'success': True,
+                    'message': 'Ollama service started (airplane mode)'
+                }
+            time.sleep(0.2)
+
+        return {
+            'success': False,
+            'message': 'Ollama service failed to start within 10 seconds'
+        }
+
     except Exception as e:
         return {
             'success': False,

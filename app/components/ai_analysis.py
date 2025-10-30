@@ -2,267 +2,512 @@
 import streamlit as st
 import json
 import time
+import random
+from datetime import datetime
 from app.components.system_status import prepare_ollama_models_background, check_system_ready_for_upload
-from database.db_models import Batch, Document, DocumentCategory
+from database.db_models import create_connection, Batch, Document, DocumentCategory
 from utils.utils_system_specs import get_system_specs
 from utils.ocr_processing import process_document_with_all_ocr_models
 
 
 def render_ai_analysis_page():
     """Main render function for combined AI Analysis tab."""
+    print("\n" + "="*80)
+    print("RENDER_AI_ANALYSIS_PAGE - Starting")
+    print("="*80)
     
-    # Initialize session state for uploads
     if 'uploaded_files' not in st.session_state:
+        print("Initializing 'uploaded_files' in session state")
         st.session_state['uploaded_files'] = []
     
-    # Check if analysis has been started
-    if not st.session_state.get('start_categorization', False):
-        # Show upload section
-        render_upload_section()
-    else:
-        # Show AI analysis workflow
-        render_analysis_workflow()
+    start_categorization = st.session_state.get('start_categorization', False)
+    print(f"Start categorization flag: {start_categorization}")
+    
+    # Always render upload section (disabled if started)
+    print("Rendering upload section...")
+    render_upload_section(disabled=start_categorization)
+    
+    if start_categorization:
+        print("Rendering analysis workflow elements...")
+        render_batch_metrics()
+        st.markdown("---")
+        render_analysis_content()
+        # st.markdown("---")
+        render_button_row()
+    
+    print("="*80 + "\n")
 
 
-def render_upload_section():
-    """Render document upload section."""
-    # Create two columns: upload section and ready to process section
+def render_upload_section(disabled: bool = False):
+    """Render document upload section, disabled if processing started."""
+    print("\n" + "="*80)
+    print(f"RENDER_UPLOAD_SECTION - Starting (disabled={disabled})")
+    print("="*80)
+    
     col_upload, _, col_process = st.columns([5, 1, 4])
     
     with col_upload:
         st.markdown("#### Upload Files")
         
-        uploaded_files = st.file_uploader(
-            "Choose files",
-            accept_multiple_files=True,
-            key="files_upload",
-            type=['pdf'],
-            label_visibility="collapsed"
-        )
-        
-        if uploaded_files:
-            st.session_state['uploaded_files'] = uploaded_files
+        if not disabled:
+            uploaded_files = st.file_uploader(
+                "Choose files",
+                accept_multiple_files=True,
+                key="files_upload",
+                type=['pdf'],
+                label_visibility="collapsed"
+            )
+            
+            if uploaded_files:
+                print(f"Files uploaded: {len(uploaded_files)}")
+                for idx, f in enumerate(uploaded_files, 1):
+                    print(f"  {idx}. {f.name} ({len(f.getvalue())} bytes)")
+                st.session_state['uploaded_files'] = uploaded_files
+                st.session_state['number_of_files'] = len(uploaded_files)
+        else:
+            # Disabled state: show static info
+            file_count = len(st.session_state.get('uploaded_files', []))
+            st.info(f"{file_count} document(s) uploaded and processing...")
     
     with col_process:
-        # Show Ready to Process section if files are uploaded
-        if st.session_state['uploaded_files']:
-            file_count = len(st.session_state['uploaded_files'])
+        uploaded_files = st.session_state.get('uploaded_files', [])
+        if uploaded_files:
+            file_count = len(uploaded_files)
             
             st.markdown("#### Ready to Process")
             st.info(f"{file_count} document(s) uploaded")
             
-            # Check if system is ready
-            is_ready, missing_items = check_system_ready_for_upload()
-            
-            if not is_ready:
-                st.warning("⚠️ System not ready")
-                st.error("Missing requirements:")
-                for item in missing_items:
-                    st.write(f"• {item}")
-                st.info("Check sidebar for system status")
+            if not disabled:
+                print(f"Checking system readiness...")
+                is_ready, missing_items = check_system_ready_for_upload()
+                print(f"System ready: {is_ready}")
                 
-                st.button("Start AI Analysis", type="primary", width='stretch', disabled=True)
-            else:
-                if st.button("Start AI Analysis", type="primary", width='stretch'):
-                    # Create batch and insert documents into database
-                    create_batch_and_documents()
-                    st.session_state['start_categorization'] = True
-                    st.rerun()
-            
-            if st.button("Clear Upload", width='stretch'):
-                st.session_state['uploaded_files'] = []
-                clear_analysis_session()
-                st.rerun()
+                if not is_ready:
+                    print(f"System not ready. Missing items: {missing_items}")
+                    st.warning("Warning: System not ready")
+                    st.error("Missing requirements:")
+                    for item in missing_items:
+                        st.write(f"• {item}")
+                    st.info("Check sidebar for system status")
+                    
+                    # Two disabled buttons side-by-side
+                    btn_col1, btn_col2 = st.columns(2)
+                    with btn_col1:
+                        st.button("Start AI Analysis", type="primary", disabled=True, use_container_width=True)
+                    with btn_col2:
+                        if st.button("Clear Upload", use_container_width=True):
+                            print("User clicked 'Clear Upload' button")
+                            st.session_state['uploaded_files'] = []
+                            clear_analysis_session()
+                            st.rerun()
+                else:
+                    print("System ready - enabling Start AI Analysis button")
+                    
+                    # Two active buttons side-by-side
+                    btn_col1, btn_col2 = st.columns(2)
+                    with btn_col1:
+                        if st.button("Start AI Analysis", type="primary", use_container_width=True):
+                            print("User clicked 'Start AI Analysis' button")
+                            create_batch_and_documents()
+                            st.session_state['start_categorization'] = True
+                            print("Set start_categorization to True, triggering rerun")
+                            st.rerun()
+                    with btn_col2:
+                        if st.button("Clear Upload", use_container_width=True):
+                            print("User clicked 'Clear Upload' button")
+                            st.session_state['uploaded_files'] = []
+                            clear_analysis_session()
+                            st.rerun()
+
+            # No buttons when disabled
         else:
             st.markdown("#### Ready to Process")
             st.info("Upload files to begin processing")
+            print("No files uploaded yet")
+    
+    print("="*80 + "\n")
 
 
 def create_batch_and_documents():
     """Create batch record and insert all uploaded documents into database."""
+    print("\n" + "="*80)
+    print("CREATE_BATCH_AND_DOCUMENTS - Starting")
+    print("="*80)
+    
     org_uuid = st.session_state.get('org_uuid', '')
     user_uuid = st.session_state.get('user_uuid')
     uploaded_files = st.session_state.get('uploaded_files', [])
+    number_of_files = len(uploaded_files)
+
+    print(f"Organization UUID: {org_uuid}")
+    print(f"User UUID: {user_uuid}")
+    print(f"Number of files to process: {number_of_files}")
     
     if not org_uuid or not user_uuid or not uploaded_files:
+        print("ERROR: Missing required information")
         st.error("Missing required information to create batch")
         return None
     
-    # Get system specs for batch metadata
+    print("\nGathering system specs...")
     system_specs = get_system_specs()
     system_metadata_json = json.dumps(system_specs)
+    print(f"System specs gathered: {len(system_metadata_json)} characters")
     
-    # Create batch record
+    # --- STEP 1: Create Batch (metadata auto-filled) ---
+    print("\n--- STEP 1: Creating Batch Record ---")
     batch = Batch()
     batch_data = {
         "organization_uuid": org_uuid,
-        "automation_uuid": None,  # Manual upload
+        "automation_uuid": None,
         "system_metadata": system_metadata_json,
         "status": "started",
-        "process_time": 0,
-        "created_by": user_uuid
+        "number_of_files": number_of_files,
+        "process_time": 0
     }
 
+    print("Batch data prepared:")
     print(json.dumps(batch_data, indent=2, default=str))
-    batch_uuid = Batch().insert(**batch_data)
-
-    # batch_uuid = Batch().insert(batch_data) # If insert() expects a dict → pass directly
     
-    # Store batch info in session state
+    print("\nInserting batch into database...")
+    batch_uuid = batch.insert(st.session_state, '/ai-analyze', batch_data)
+    print(f"Success: Batch created successfully: {batch_uuid}")
+    
     st.session_state['batch_uuid'] = batch_uuid
     st.session_state['batch_start_time'] = time.time()
+    print(f"Batch start time recorded: {st.session_state['batch_start_time']}")
     
-    # Insert each document into database
+    # --- STEP 2: Insert Documents ---
+    print("\n--- STEP 2: Inserting Documents ---")
     document_model = Document()
     document_uuids = []
     
-    for uploaded_file in uploaded_files:
-        # Read PDF bytes
+    for idx, uploaded_file in enumerate(uploaded_files, 1):
+        print(f"\nProcessing document {idx}/{len(uploaded_files)}: {uploaded_file.name}")
         pdf_bytes = uploaded_file.getvalue()
+        print(f"  PDF size: {len(pdf_bytes)} bytes")
         
-        # Insert document record
-        document_uuid = document_model.insert(
-            organization_uuid=org_uuid,
-            batch_uuid=batch_uuid,
-            upload_name=uploaded_file.name,
-            upload_folder=None,
-            pdf=pdf_bytes,
-            is_active=1,
-            created_by=user_uuid,
-            updated_by=user_uuid
-        )
+        document_data = {
+            "organization_uuid": org_uuid,
+            "batch_uuid": batch_uuid,
+            "upload_name": uploaded_file.name,
+            "upload_folder": None,
+            "pdf": pdf_bytes
+        }
         
+        print(f"  Inserting document into database...")
+        document_uuid = document_model.insert(st.session_state, '/ai-analyze', document_data)
         document_uuids.append(document_uuid)
+        print(f"  Success: Document inserted: {document_uuid}")
     
-    # Store document UUIDs in session state
     st.session_state['document_uuids'] = document_uuids
+    print(f"\nSuccess: All {len(document_uuids)} documents inserted successfully")
     
-    # Update batch status
-    batch.update(batch_uuid, status='processing')
+    # --- STEP 3: Update Batch Status ---
+    print("\n--- STEP 3: Updating Batch Status ---")
+    print("Updating batch status to 'processing'...")
+    batch.update(st.session_state, '/ai-analyze', batch_uuid, {"status": "processing"})
+    print("Success: Batch status updated to 'processing'")
+    
+    print("\n" + "="*80)
+    print("CREATE_BATCH_AND_DOCUMENTS - Complete")
+    print(f"Batch UUID: {batch_uuid}")
+    print(f"Documents created: {len(document_uuids)}")
+    print("="*80 + "\n")
     
     return batch_uuid
 
 
 def render_document_processing():
-    """Render condensed document processing step with OCR."""
-    st.markdown("### Step 2: Processing Documents")
+    """Render document processing step - separated into OCR and LLM phases."""
+    print("\n" + "="*80)
+    print("RENDER_DOCUMENT_PROCESSING - Starting")
+    print("="*80)
     
     files = st.session_state['uploaded_files']
     document_uuids = st.session_state.get('document_uuids', [])
     total_files = len(files)
     
+    print(f"Total files to process: {total_files}")
+    print(f"Document UUIDs available: {len(document_uuids)}")
+    
     # Initialize processing state
     if 'current_file_index' not in st.session_state:
+        print("Initializing processing state...")
         st.session_state['current_file_index'] = 0
         st.session_state['categorization_results'] = []
+        st.session_state['ocr_complete'] = False
+        print("Processing state initialized")
     
     current_index = st.session_state['current_file_index']
+    ocr_complete = st.session_state.get('ocr_complete', False)
     
-    # Progress bar
-    progress = current_index / total_files
-    st.progress(progress, text=f"Processing {current_index}/{total_files} documents")
+    print(f"Current file index: {current_index}")
+    print(f"OCR phase complete: {ocr_complete}")
     
-    # Current file processing
-    if current_index < total_files:
-        current_file = files[current_index]
-        current_doc_uuid = document_uuids[current_index]
+    # PHASE 1: OCR Processing
+    if not ocr_complete:
+        st.markdown("### Step 2A: OCR Text Extraction")
+        print("\n--- PHASE 1: OCR Processing ---")
         
-        st.info(f"📄 Analyzing: {current_file.name}")
+        progress = current_index / total_files
+        st.progress(progress, text=f"Extracting text from {current_index}/{total_files} documents")
         
-        # Process with OCR models
-        pdf_bytes = current_file.getvalue()
-        ocr_results = process_document_with_all_ocr_models(pdf_bytes)
-        
-        # Store OCR results in document_category table
-        org_uuid = st.session_state.get('org_uuid')
-        user_uuid = st.session_state.get('user_uuid')
-        
-        doc_category = DocumentCategory()
-        doc_category_uuid = doc_category.insert(
-            organization_uuid=org_uuid,
-            document_uuid=current_doc_uuid,
-            category_uuid=None,  # Will be set after LLM categorization
-            stamps_uuid=None,
-            category_confidence=None,
-            all_category_confidence=None,
-            ocr_text=json.dumps(ocr_results),  # Store as JSON
-            ocr_text_confidence=None,
-            override_category_uuid=None,
-            override_context=None,
-            is_active=1,
-            created_by=user_uuid,
-            updated_by=user_uuid
-        )
-        
-        # TODO: Add LLM categorization here
-        # For now, use placeholder
-        result = {
-            'filename': current_file.name,
-            'document_uuid': current_doc_uuid,
-            'document_category_uuid': doc_category_uuid,
-            'category': '[AI Category Placeholder]',
-            'confidence': 0.85,
-            'subcategory': '[Subcategory Placeholder]',
-            'stamp_detected': 'FILED',
-            'ocr_text': ocr_results
-        }
-        
-        st.session_state['categorization_results'].append(result)
-        st.session_state['current_file_index'] += 1
-        
-        st.rerun()
+        if current_index < total_files:
+            current_file = files[current_index]
+            current_doc_uuid = document_uuids[current_index]
+            
+            print(f"\nProcessing file {current_index + 1}/{total_files}: {current_file.name}")
+            print(f"Document UUID: {current_doc_uuid}")
+            
+            st.info(f"Extracting text: {current_file.name}")
+            
+            print("Reading PDF bytes...")
+            pdf_bytes = current_file.getvalue()
+            print(f"PDF size: {len(pdf_bytes)} bytes")
+            
+            print("Starting OCR processing...")
+            ocr_results = process_document_with_all_ocr_models(pdf_bytes)
+            print(f"OCR processing complete. Results: {len(str(ocr_results))} characters")
+            
+            org_uuid = st.session_state.get('org_uuid')
+            
+            print(f"\nPreparing document_category record...")
+            print(f"  Organization UUID: {org_uuid}")
+            print(f"  Document UUID: {current_doc_uuid}")
+            
+            # Insert document_category with OCR results only
+            doc_category = DocumentCategory()
+            doc_category_data = {
+                "organization_uuid": org_uuid,
+                "document_uuid": current_doc_uuid,
+                "category_uuid": None,
+                "stamps_uuid": None,
+                "category_confidence": None,
+                "all_category_confidence": None,
+                "ocr_text": json.dumps(ocr_results, indent=4),
+                "ocr_text_confidence": None,
+                "override_category_uuid": None,
+                "override_context": None
+            }
+            
+            print("Inserting document_category with OCR results...")
+            doc_category_uuid = doc_category.insert(st.session_state, '/ai-analyze', doc_category_data)
+            print(f"Success: Document_category created: {doc_category_uuid}")
+            
+            # Store minimal result for now
+            result = {
+                'filename': current_file.name,
+                'document_uuid': current_doc_uuid,
+                'document_category_uuid': doc_category_uuid,
+                'ocr_text': json.dumps(ocr_results, indent=4),
+                'category': None,
+                'confidence': None,
+                'subcategory': None,
+                'stamp_detected': None
+            }
+            
+            st.session_state['categorization_results'].append(result)
+            st.session_state['current_file_index'] += 1
+            
+            print(f"Moving to next file. New index: {st.session_state['current_file_index']}")
+            print("="*80 + "\n")
+            st.rerun()
+        else:
+            # OCR phase complete
+            print("\nSuccess: OCR phase complete for all documents")
+            print(f"Total documents processed: {total_files}")
+            st.session_state['ocr_complete'] = True
+            st.session_state['current_file_index'] = 0
+            print("Resetting index for LLM phase")
+            print("="*80 + "\n")
+            st.success(f"Success: Text extracted from {total_files} documents")
+            time.sleep(1)
+            st.rerun()
+    
+    # PHASE 2: LLM Categorization
     else:
-        # Processing complete - update batch
-        batch_uuid = st.session_state.get('batch_uuid')
-        batch_start_time = st.session_state.get('batch_start_time')
+        st.markdown("### Step 2B: AI Categorization")
+        print("\n--- PHASE 2: LLM Categorization ---")
         
-        if batch_uuid and batch_start_time:
-            process_time = int(time.time() - batch_start_time)
-            batch = Batch()
-            batch.update(batch_uuid, status='completed', process_time=process_time)
+        progress = current_index / total_files
+        st.progress(progress, text=f"Categorizing {current_index}/{total_files} documents")
         
-        st.success(f"✅ Processed {total_files} documents")
-        st.session_state['processing_complete'] = True
-        st.rerun()
+        if current_index < total_files:
+            result = st.session_state['categorization_results'][current_index]
+            
+            print(f"\nCategorizing document {current_index + 1}/{total_files}: {result['filename']}")
+            print(f"Document UUID: {result['document_uuid']}")
+            print(f"Document Category UUID: {result['document_category_uuid']}")
+            
+            st.info(f"Analyzing: {result['filename']}")
+            
+            # Query the OCR text from the database
+            print("Querying OCR text from database...")
+            org_uuid = st.session_state.get('org_uuid')
+            
+            conn = create_connection()
+            cursor = conn.cursor()
+            
+            query = """
+                SELECT ocr_text 
+                FROM document_category 
+                WHERE document_category_uuid = ? AND organization_uuid = ?
+            """
+            print(f"Executing query for document_category_uuid: {result['document_category_uuid']}")
+            cursor.execute(query, (result['document_category_uuid'], org_uuid))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                ocr_text_json = row[0]
+                print(f"Success: OCR text retrieved from database: {len(ocr_text_json)} characters")
+                
+                # TODO: Feed OCR text to LLM for categorization
+                print("\nTODO: Feeding OCR text to LLM models for categorization...")
+                print("  - This is where you would call your LLM categorization function")
+                print("  - Pass the OCR text to multiple LLM models")
+                print("  - Aggregate confidence scores")
+                print("  - Determine final category")
+                
+                # Placeholder LLM results
+                llm_category = random.choice(['Garnishments', 'Transcript of Judgments', 'Service'])
+                llm_confidence = random_number = random.uniform(0.50, 0.90)
+                llm_subcategory = random.choice(['Bank Garn', 'Wage Garn', 'Rejected TOJ', 'Accepted TOJ'])
+                llm_stamp = random.choice(['FILED', 'SERVED', 'RECORDED', 'ISSUED', '', '', '', ''])
+                
+                print(f"\nLLM Results (placeholder):")
+                print(f"  Category: {llm_category}")
+                print(f"  Confidence: {llm_confidence}")
+                print(f"  Subcategory: {llm_subcategory}")
+                print(f"  Stamp: {llm_stamp}")
+                
+                # Update result
+                result['category'] = llm_category
+                result['confidence'] = llm_confidence
+                result['subcategory'] = llm_subcategory
+                result['stamp_detected'] = llm_stamp
+                
+                # Update document_category with LLM results
+                print("\nUpdating document_category with LLM results...")
+                doc_category = DocumentCategory()
+                update_data = {
+                    "category_uuid": None,
+                    "category_confidence": llm_confidence,
+                    "all_category_confidence": json.dumps({"placeholder": llm_confidence})
+                }
+                
+                doc_category.update(
+                    st.session_state, 
+                    '/ai-analyze', 
+                    result['document_category_uuid'], 
+                    update_data
+                )
+                print("Success: Document_category updated with LLM results")
+                
+            else:
+                print("ERROR: Could not retrieve OCR text from database")
+            
+            st.session_state['current_file_index'] += 1
+            print(f"Moving to next document. New index: {st.session_state['current_file_index']}")
+            print("="*80 + "\n")
+            st.rerun()
+        else:
+            # LLM phase complete - update batch
+            print("\nSuccess: LLM categorization complete for all documents")
+            print(f"Total documents categorized: {total_files}")
+            
+            batch_uuid = st.session_state.get('batch_uuid')
+            batch_start_time = st.session_state.get('batch_start_time')
+            
+            if batch_uuid and batch_start_time:
+                process_time = int(time.time() - batch_start_time)
+                st.session_state['process_time'] = process_time
+                print(f"\nUpdating batch record...")
+                print(f"  Batch UUID: {batch_uuid}")
+                print(f"  Process time: {process_time} seconds")
+                
+                batch = Batch()
+                batch.update(st.session_state, '/ai-analyze', batch_uuid, {
+                    "status": "completed",
+                    "process_time": process_time
+                })
+                print("Success: Batch status updated to 'completed'")
+            
+            print("\n" + "="*80)
+            print("RENDER_DOCUMENT_PROCESSING - Complete")
+            print(f"Total documents processed: {total_files}")
+            print("="*80 + "\n")
+            
+            st.success(f"Success: Processed {total_files} documents")
+            st.session_state['processing_complete'] = True
+            st.rerun()
 
 
-def render_analysis_workflow():
-    """Render AI analysis workflow after files are uploaded."""
+def render_batch_metrics():
+    """Render the batch metrics in a table-like structure."""
+    batch_uuid = st.session_state.get('batch_uuid', 'N/A')
+    num_files = st.session_state.get('number_of_files', 0)
+    start_time = st.session_state.get('batch_start_time')
+    start_str = datetime.fromtimestamp(start_time).strftime("%Y-%m-%d %H:%M:%S") if start_time else 'N/A'
+    status = get_processing_status()
+    process_time = f"{st.session_state.get('process_time', 0)}s" if st.session_state.get('processing_complete', False) else "In Progress"
     
-    if not st.session_state.get('uploaded_files'):
-        st.info("📁 No documents uploaded.")
-        if st.button("Back to Upload"):
-            st.session_state['start_categorization'] = False
-            st.rerun()
-        return
+    batch_header_row_spacing = [30, 15, 25, 15, 20]
+
+    # ---------- Header ----------
+    batch_hdr = st.columns(batch_header_row_spacing)
+    batch_hdr[0].markdown("### Batch UUID")
+    batch_hdr[1].markdown("### File Count")
+    batch_hdr[2].markdown("### Start")
+    batch_hdr[3].markdown("### Status")
+    batch_hdr[4].markdown("### Process Time")  
+
+    # --- Custom text size (adjust '1.1rem' as needed) ---
+    text_size = "1.2rem"  # Options: 0.9rem, 1rem, 1.1rem, 1.2rem, etc.
+
+    batch_hdr[0].markdown(f"<span style='font-size:{text_size}'>{batch_uuid}</span>", unsafe_allow_html=True)
+    batch_hdr[1].markdown(f"<span style='font-size:{text_size}'>{num_files}</span>", unsafe_allow_html=True)
+    batch_hdr[2].markdown(f"<span style='font-size:{text_size}'>{start_str}</span>", unsafe_allow_html=True)
+    batch_hdr[3].markdown(f"<span style='font-size:{text_size}'>{status}</span>", unsafe_allow_html=True)
+    batch_hdr[4].markdown(f"<span style='font-size:{text_size}'>{process_time}</span>", unsafe_allow_html=True)     
+
+
+def render_button_row():
+    """Render the button row, only if processing complete."""
+    if st.session_state.get('processing_complete', False):
+        btn_col1, btn_col2, btn_col3 = st.columns(3)
+        with btn_col1:
+            if st.button("Save Results", type="primary", width="stretch"):
+                save_results_to_database()
+                st.success("Results saved!")
+        with btn_col2:
+            if st.button("Export CSV", width="stretch"):
+                export_results_csv()
+        with btn_col3:
+            if st.button("Process More", width="stretch"):
+                clear_analysis_session()
+                st.rerun()
+
+
+def render_analysis_content():
+    """Render the main content: model prep, processing, or results."""
+    models_prepared = st.session_state.get('models_prepared', False)
+    processing_complete = st.session_state.get('processing_complete', False)
     
-    files = st.session_state['uploaded_files']
+    print(f"Models prepared: {models_prepared}")
+    print(f"Processing complete: {processing_complete}")
     
-    # Condensed header
-    col1, col2, col3 = st.columns([2, 3, 1])
-    with col1:
-        st.metric("Documents", len(files))
-    with col2:
-        status = get_processing_status()
-        st.metric("Status", status)
-    with col3:
-        if st.button("🗑️ Clear", width='stretch'):
-            clear_analysis_session()
-            st.rerun()
-    
-    st.markdown("---")
-    
-    # Step 1: Model Preparation
-    if not st.session_state.get('models_prepared', False):
+    if not models_prepared:
+        print("Rendering model preparation step...")
         render_model_preparation()
         return
     
-    # Step 2: Document Processing
-    if not st.session_state.get('processing_complete', False):
+    if not processing_complete:
+        print("Rendering document processing step...")
         render_document_processing()
         return
     
-    # Step 3: Results
+    print("Rendering categorization results...")
     render_categorization_results()
 
 
@@ -286,13 +531,12 @@ def render_model_preparation():
         result = prepare_ollama_models_background(progress_container=progress_container)
     
     if result['success']:
-        st.success("✅ Models Ready")
+        st.success("Success: Models Ready")
         st.session_state['models_prepared'] = True
         st.rerun()
     else:
-        st.error("❌ Model Preparation Failed")
+        st.error("Error: Model Preparation Failed")
         
-        # Compact error display
         if result.get('failed'):
             with st.expander("View Errors"):
                 for failure in result['failed']:
@@ -300,224 +544,131 @@ def render_model_preparation():
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔄 Retry", width='stretch'):
+            if st.button("Retry"):
                 st.rerun()
         with col2:
-            if st.button("⚠️ Continue Anyway", width='stretch'):
+            if st.button("Continue Anyway"):
                 st.session_state['models_prepared'] = True
                 st.rerun()
 
 
-def render_document_processing():
-    """Render condensed document processing step."""
-    st.markdown("### Step 2: Processing Documents")
-    
-    files = st.session_state['uploaded_files']
-    total_files = len(files)
-    
-    # Initialize processing state
-    if 'current_file_index' not in st.session_state:
-        st.session_state['current_file_index'] = 0
-        st.session_state['categorization_results'] = []
-    
-    current_index = st.session_state['current_file_index']
-    
-    # Progress bar
-    progress = current_index / total_files
-    st.progress(progress, text=f"Processing {current_index}/{total_files} documents")
-    
-    # Current file processing (placeholder for actual AI logic)
-    if current_index < total_files:
-        current_file = files[current_index]
-        
-        st.info(f"📄 Analyzing: {current_file.name}")
-        
-        # Placeholder for actual AI categorization
-        # TODO: Replace with actual AI categorization logic
-        result = {
-            'filename': current_file.name,
-            'category': '[AI Category Placeholder]',
-            'confidence': 0.85,
-            'subcategory': '[Subcategory Placeholder]',
-            'stamp_detected': 'FILED'
-        }
-        
-        st.session_state['categorization_results'].append(result)
-        st.session_state['current_file_index'] += 1
-        
-        st.rerun()
-    else:
-        # Processing complete
-        st.success(f"✅ Processed {total_files} documents")
-        st.session_state['processing_complete'] = True
-        st.rerun()
-
-
 def render_categorization_results():
-    """Render condensed categorization results in grid layout."""
-    st.markdown("### Results")
-    
+    """Table with an expander that replaces the old modal."""
     results = st.session_state.get('categorization_results', [])
-    
     if not results:
         st.warning("No results available")
         return
-    
-    # Calculate grid dimensions (3 columns for better space usage)
-    num_cols = 3
-    num_rows = (len(results) + num_cols - 1) // num_cols
-    
-    # Render results in grid
-    for row in range(num_rows):
-        cols = st.columns(num_cols)
-        
-        for col_idx in range(num_cols):
-            result_idx = row * num_cols + col_idx
-            
-            if result_idx < len(results):
-                with cols[col_idx]:
-                    render_result_card(results[result_idx], result_idx)
-    
-    # Show modal dialog if viewing/editing a result
-    if 'viewing_result' in st.session_state:
-        render_result_modal_dialog(results[st.session_state['viewing_result']])
-    
-    # Action buttons at bottom
-    st.markdown("---")
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        if st.button("Save Results", type="primary", width='stretch'):
-            save_results_to_database()
-            st.success("Results saved!")
-    
-    with col2:
-        if st.button("Export CSV", width='stretch'):
-            export_results_csv()
-    
-    with col3:
-        if st.button("Process More", width='stretch'):
-            clear_analysis_session()
-            st.rerun()
 
+    row_spacing = [3, 3, 2, 2, 1]          # 5 columns now (no View/Edit button)
 
-def render_result_card(result, idx):
-    """Render a single condensed result card."""
-    confidence = result['confidence']
-    
-    # Determine confidence color
-    if confidence >= 0.8:
-        conf_color = "#28a745"
-        conf_emoji = "🟢"
-    elif confidence >= 0.6:
-        conf_color = "#ffc107"
-        conf_emoji = "🟡"
-    else:
-        conf_color = "#dc3545"
-        conf_emoji = "🔴"
-    
-    # Card container with border
-    with st.container():
-        st.markdown(f"""
-        <div style="
-            border: 1px solid #ddd; 
-            border-radius: 8px; 
-            padding: 12px; 
-            margin-bottom: 8px;
-            background-color: #f8f9fa;
-            height: 150px;
-        ">
-            <div style="font-size: 13px; font-weight: bold; margin-bottom: 8px; 
-                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-                 title="{result['filename']}">
-                📄 {result['filename']}
-            </div>
-            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">
-                <strong>Category:</strong> {result['category']}
-            </div>
-            <div style="font-size: 12px; color: #666; margin-bottom: 8px;">
-                <strong>Confidence:</strong> <span style="color: {conf_color}; font-weight: bold;">{conf_emoji} {confidence:.0%}</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Action buttons
-        btn_col1, btn_col2, btn_col3 = st.columns(3)
-        
-        with btn_col1:
-            if st.button("View/Edit", key=f"view_{idx}", width='stretch', type="secondary"):
-                st.session_state['viewing_result'] = idx
-                st.session_state['editing_mode'] = True
-                st.rerun()
-        
-        with btn_col2:
-            if st.button("Delete", key=f"delete_{idx}", width='stretch'):
-                if st.session_state.get(f'confirm_delete_{idx}', False):
-                    st.session_state['categorization_results'].pop(idx)
-                    st.session_state[f'confirm_delete_{idx}'] = False
-                    st.success(f"Deleted {result['filename']}")
-                    st.rerun()
+    # ---------- Header ----------
+    hdr = st.columns(row_spacing)
+    hdr[0].markdown("### File")
+    hdr[1].markdown("### Category")
+    hdr[2].markdown("### Confidence")
+    hdr[3].markdown("### Stamp")
+    hdr[4].markdown("")                 # Confirm button column
+
+    # ---------- Each row ----------
+    for i, res in enumerate(results):
+        row_container = st.container()
+        with row_container:
+            cols = st.columns(row_spacing, vertical_alignment="center")
+
+            # --- Custom text size (adjust '1.1rem' as needed) ---
+            text_size = "1.1rem"  # Options: 0.9rem, 1rem, 1.1rem, 1.2rem, etc.
+
+            # File name
+            filename = res.get('filename', 'N/A')
+            cols[0].markdown(f"<span style='font-size:{text_size}'>{filename}</span>", unsafe_allow_html=True)
+
+            # Category
+            cat = f"{res.get('category','')} {res.get('subcategory','')}".strip()
+            cols[1].markdown(f"<span style='font-size:{text_size}'>{cat}</span>", unsafe_allow_html=True)
+
+            # Confidence badge (badge size is fixed, but label is readable)
+            conf = res.get('confidence')
+            if isinstance(conf, (int, float)):
+                pct = f"{conf*100:.1f}%"
+                if conf >= 0.75:
+                    c, ico = "green", ":material/check:"
+                elif conf >= 0.65:
+                    c, ico = "orange", ":material/warning:"
                 else:
-                    st.session_state[f'confirm_delete_{idx}'] = True
-                    st.rerun()
-        
-        with btn_col3:
-            if st.button("Confirm", key=f"confirm_{idx}", width='stretch', type="primary"):
-                result['confirmed'] = True
-                st.success(f"Confirmed!")
-                st.rerun()
-        
-        # Show delete confirmation if needed
-        if st.session_state.get(f'confirm_delete_{idx}', False):
-            st.warning(f"Click Delete again to confirm removal of {result['filename']}")
+                    c, ico = "red", ":material/error:"
+                cols[2].badge(pct, icon=ico, color=c)
+            else:
+                cols[2].badge("N/A", color="gray")
+
+            # Stamp badge
+            stamp = res.get('stamp_detected', False)
+            label = "Detected" if stamp else "Not Detected"
+            scol = "green" if stamp else "red"
+            sico = ":material/check:" if stamp else ":material/close:"
+            cols[3].badge(label, icon=sico, color=scol)
+
+            # Confirm button
+            if cols[4].button("Confirm", key=f"confirm_{i}"):
+                pass
+
+        # --- Expander ---
+        with st.expander(f"Details – {res.get('filename','Item '+str(i))}", expanded=False):
+            _render_expander_content(res, i)
+
+        st.markdown("---")
 
 
-@st.dialog("Document Classification Details", width="large")
-def render_result_modal_dialog(result):
-    """Render modal dialog for viewing/editing classification details."""
-    
+# --------------------------------------------------------------
+#  Helper that draws the *former* modal content inside an expander
+# --------------------------------------------------------------
+def _render_expander_content(result: dict, row_idx: int):
+    """All the UI that used to be in the modal – now inside an expander."""
     st.markdown("---")
-    
-    # Top section: File info
+
+    # ---------- Row 1 – Filename | Category | Subcategory ----------
     r1_col1, r1_col2, r1_col3 = st.columns(3)
-    
+
     with r1_col1:
-        st.text_input("Filename", value=result['filename'], disabled=True, key="modal_filename")
-    
+        st.text_input(
+            "Filename",
+            value=result.get('filename', ''),
+            disabled=True,
+            key=f"exp_filename_{row_idx}"
+        )
+
     with r1_col2:
-        # Editable category dropdown
         categories = ["Garnishments", "Transcript of Judgments", "Service", "Invoices", "Contracts"]
-        current_category_idx = categories.index(result['category']) if result['category'] in categories else 0
-        
+        cur_idx = categories.index(result.get('category')) if result.get('category') in categories else 0
         new_category = st.selectbox(
             "Category",
             categories,
-            index=current_category_idx,
-            key="modal_category"
+            index=cur_idx,
+            key=f"exp_category_{row_idx}"
         )
-    
+
     with r1_col3:
-        # Subcategory
         subcategories = ["Wage Garn", "Bank Garn", "Accepted TOJ", "Rejected TOJ"]
+        cur_sub = result.get('subcategory')
+        sub_idx = subcategories.index(cur_sub) + 1 if cur_sub in subcategories else 0
         new_subcategory = st.selectbox(
             "Subcategory",
             ["None"] + subcategories,
-            key="modal_subcategory"
+            index=sub_idx,
+            key=f"exp_subcategory_{row_idx}"
         )
 
+    # ---------- Row 2 – Confidence + All LLM confidences ----------
     r2_col1, r2_col2, r2_col3 = st.columns([2, 1, 7])
-    
+
     with r2_col1:
         st.markdown("**Confidence Levels:**")
-        
-        confidence = result['confidence']
+        confidence = result.get('confidence', 0.0)
         if confidence >= 0.8:
-            conf_color = "🟢"
+            conf_color = "Green"
         elif confidence >= 0.6:
-            conf_color = "🟡"
+            conf_color = "Yellow"
         else:
-            conf_color = "🔴"
-        
+            conf_color = "Red"
         st.metric("Highest Confidence", f"{conf_color} {confidence:.1%}")
 
     with r2_col2:
@@ -535,99 +686,71 @@ def render_result_modal_dialog(result):
 
     with r2_col3:
         st.markdown("**All LLM Confidences:**")
-        
-        llm_confidences = result.get('all_llm_confidences', {
-            'granite3.2-vision': 0.85,
-            'llava:7b': 0.82,
-            'mistral': 0.78
-        })
-        
+        llm_confidences = result.get('all_llm_confidences', {})
         items = list(llm_confidences.items())
-        n_items = len(items)
-        
-        if n_items == 0:
+        if not items:
             st.caption("No models evaluated")
         else:
-            cols = st.columns(min(n_items, 3))
-            for i, (model_name, conf) in enumerate(items):
-                with cols[i % len(cols)]:
-                    st.metric(
-                        label=model_name.split(':')[0],
-                        value=f"{conf:.1%}",
-                        delta=None
-                    )
-    
-    st.markdown("---")
-    
+            cols = st.columns(min(len(items), 3))
+            for j, (model, conf) in enumerate(items):
+                with cols[j % len(cols)]:
+                    st.metric(label=model.split(':')[0], value=f"{conf:.1%}")
+
+    # ---------- Row 3 – OCR text + PDF preview ----------
     r3_col1, r3_col2 = st.columns([4, 6])
 
     with r3_col1:
         st.markdown("**Extracted Text (OCR)**")
-        
-        ocr_text = result.get('ocr_text', 
-            "This is placeholder OCR text extracted from the document.\n\n" +
-            "In a real implementation, this would contain the full text extracted " +
-            "from the PDF using the OCR models (Tesseract, EasyOCR, or PaddleOCR).\n\n" +
-            "The text would include all readable content from the document, " +
-            "which the LLM models used to determine the category and confidence levels."
-        )
-        
+        ocr_text = result.get('ocr_text',
+            "Placeholder OCR text … (real OCR would be here)")
         new_ocr_text = st.text_area(
             "OCR Text",
             value=ocr_text,
             height=300,
-            key="modal_ocr_text",
+            key=f"exp_ocr_{row_idx}",
             label_visibility="collapsed"
         )
-    
-    with r3_col2:    
+
+    with r3_col2:
         st.markdown("**Document Preview**")
-        
-        pdf_data = result.get('pdf_data', None)
-        
-        if pdf_data:
-            st.write("PDF preview would be rendered here using st.write() or an iframe")
+        if result.get('pdf_data'):
+            st.write("PDF preview would be rendered here")
         else:
-            st.info("📄 PDF preview would be displayed here\n\n" +
-                "In the real implementation, this would show:\n" +
-                "- Rendered PDF pages\n" +
-                "- Page navigation controls\n" +
-                "- Zoom controls\n" +
-                "- Detected stamps/annotations highlighted")
-    
+            st.info(
+                "PDF preview would be displayed here\n\n"
+                "- Rendered PDF pages\n"
+                "- Page navigation\n"
+                "- Zoom controls\n"
+                "- Highlighted stamps"
+            )
+
     st.markdown("---")
-    
-    # Modal action buttons
+
+    # ---------- Action buttons ----------
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
-        if st.button("Save Changes", type="primary", width='stretch', key="modal_save"):
+        if st.button("Save Changes", type="primary", key=f"exp_save_{row_idx}"):
             result['category'] = new_category
             result['subcategory'] = new_subcategory if new_subcategory != "None" else None
             result['ocr_text'] = new_ocr_text
-            
             st.success("Changes saved!")
-            del st.session_state['viewing_result']
             st.rerun()
-    
+
     with col2:
-        if st.button("Discard Changes", width='stretch', key="modal_discard"):
-            del st.session_state['viewing_result']
+        if st.button("Discard Changes", key=f"exp_discard_{row_idx}"):
             st.rerun()
-    
+
     with col3:
-        if st.button("Delete Document", width='stretch', key="modal_delete"):
-            idx = st.session_state.get('viewing_result')
-            if idx is not None:
-                st.session_state['categorization_results'].pop(idx)
-                del st.session_state['viewing_result']
-                st.success("Document deleted!")
-                st.rerun()
+        if st.button("Delete Document", key=f"exp_delete_{row_idx}"):
+            # Remove from the master list
+            st.session_state['categorization_results'].pop(row_idx)
+            st.success("Document deleted!")
+            st.rerun()
 
 
 def save_results_to_database():
     """Save categorization results to database (placeholder)."""
-    # TODO: Implement actual database save logic
     results = st.session_state.get('categorization_results', [])
     pass
 
@@ -646,7 +769,7 @@ def export_results_csv():
     csv = df.to_csv(index=False)
     
     st.download_button(
-        label="📥 Download CSV",
+        label="Download CSV",
         data=csv,
         file_name="categorization_results.csv",
         mime="text/csv"
@@ -655,6 +778,10 @@ def export_results_csv():
 
 def clear_analysis_session():
     """Clear all analysis session state."""
+    print("\n" + "="*80)
+    print("CLEAR_ANALYSIS_SESSION - Starting")
+    print("="*80)
+    
     keys_to_clear = [
         'models_prepared',
         'processing_complete',
@@ -662,9 +789,22 @@ def clear_analysis_session():
         'categorization_results',
         'viewing_result',
         'start_categorization',
-        'uploaded_files'
+        'uploaded_files',
+        'batch_uuid',
+        'batch_start_time',
+        'document_uuids',
+        'ocr_complete',
+        'process_time'
     ]
+    
+    print(f"Keys to clear: {len(keys_to_clear)}")
+    cleared_count = 0
     
     for key in keys_to_clear:
         if key in st.session_state:
+            print(f"  Clearing: {key}")
             del st.session_state[key]
+            cleared_count += 1
+    
+    print(f"\nSuccess: Cleared {cleared_count} session state keys")
+    print("="*80 + "\n")

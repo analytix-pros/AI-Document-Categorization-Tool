@@ -1,5 +1,6 @@
 """Main Streamlit application entry point with AI Analysis tab."""
 import os
+import time
 import streamlit as st
 import sqlite3
 
@@ -19,6 +20,7 @@ def initialize_database():
     if not os.path.exists(FULL_DATABASE_FILE_PATH):
         print(f"Database not found at {FULL_DATABASE_FILE_PATH}, setting up new database")
         setup_database()
+        time.sleep(10) # give the database time to initialize
         print("Database setup completed")
     else:
         print(f"Database already exists at {FULL_DATABASE_FILE_PATH}")
@@ -144,8 +146,8 @@ def main():
     print("=== STARTING MAIN APPLICATION ===")
     
     st.set_page_config(
-        page_title="AI Document Management",
-        page_icon="📄",
+        page_title="AI Document Labeling",
+        page_icon=os.path.join("assets", "icons", "network_intel_node.svg"),
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -164,82 +166,114 @@ def main():
 
 def render_main_app():
     """Render main application after login."""
-    username = st.session_state.get('username', 'unknown')
-    role = st.session_state.get('role_name', 'unknown')
-    
+    username = st.session_state.get("username", "unknown")
+    role     = st.session_state.get("role_name", "unknown")
+
+    # --------------------------------------------------------------
+    # 1. First-load splash – runs only once
+    # --------------------------------------------------------------
+    if st.session_state.get("first_load", True):
+        with st.sidebar:
+            # Show a compact status inside the sidebar
+            with st.status(
+                "Validating system & loading status…",
+                expanded=False,
+                state="running"
+            ) as status:
+                # -----------------------------------------------------------------
+                # Render the *real* sidebar content **inside** the status block.
+                # This is what the user will see while the heavy work runs.
+                # -----------------------------------------------------------------
+                st.header(f"Welcome, {username.upper()}")
+                st.write(f"**Role:** {role.upper()}")
+
+                if st.button("Logout", use_container_width=True):
+                    print(f"Logout button clicked by user: {username}")
+                    logout()
+
+                # ---- THE HEAVY PART ------------------------------------------------
+                render_system_status_sidebar()      # <-- this is the slow call
+                # -----------------------------------------------------------------
+
+                # Small visual pause so the user sees the "complete" state
+                time.sleep(0.3)
+
+                # Mark as finished
+                status.update(label="Ready!", state="complete", expanded=False)
+
+        # One-time flag – next render will skip the whole block
+        st.session_state.first_load = False
+        st.rerun()
+        return          # stop here; the normal UI is rendered on the next run
+
+    # --------------------------------------------------------------
+    # 2. Normal UI – runs on every subsequent render
+    # --------------------------------------------------------------
     print(f"=== RENDERING MAIN APP FOR USER: {username} (Role: {role}) ===")
-    
-    st.title("AI Document Management System")
-    
+
+    # ---- Sidebar (lightweight, no heavy work) -------------------------
     with st.sidebar:
         st.header(f"Welcome, {username.upper()}")
         st.write(f"**Role:** {role.upper()}")
-        
-        if st.button("Logout", width='stretch'):
+
+        if st.button("Logout", use_container_width=True):
             print(f"Logout button clicked by user: {username}")
             logout()
-        
-        render_system_status_sidebar()
-    
-    is_admin = role == 'admin'
+
+        render_system_status_sidebar()   # now fast because the data is cached
+
+    # ---- Tabs ---------------------------------------------------------
+    is_admin = role == "admin"
     print(f"User is admin: {is_admin}")
-    
+
     if is_admin:
-        print("Rendering admin interface with 4 tabs")
         tabs = st.tabs(["Dashboard", "AI Analyze", "Admin", "Settings"])
-        
+
         with tabs[0]:
-            if st.session_state.get('active_tab') != 0:
-                st.session_state['active_tab'] = 0
-            print("Rendering Dashboard tab")
-            log_page_view(st.session_state, '/dashboard')
+            if st.session_state.get("active_tab") != 0:
+                st.session_state.active_tab = 0
+            log_page_view(st.session_state, "/dashboard")
             st.info("Dashboard coming soon...")
-        
+
         with tabs[1]:
-            if st.session_state.get('active_tab') != 1:
-                st.session_state['active_tab'] = 1
-            print("Rendering AI Analyze tab")
-            log_page_view(st.session_state, '/ai-analyze')
+            if st.session_state.get("active_tab") != 1:
+                st.session_state.active_tab = 1
+            log_page_view(st.session_state, "/ai-analyze")
             render_ai_analysis_page()
-        
+
         with tabs[2]:
-            if st.session_state.get('active_tab') != 2:
-                st.session_state['active_tab'] = 2
-            print("Rendering Admin tab")
-            log_page_view(st.session_state, '/admin')
+            if st.session_state.get("active_tab") != 2:
+                st.session_state.active_tab = 2
+            log_page_view(st.session_state, "/admin")
             admin_panel.render_admin_panel()
-        
+
         with tabs[3]:
-            if st.session_state.get('active_tab') != 3:
-                st.session_state['active_tab'] = 3
-            print("Rendering Settings tab")
-            log_page_view(st.session_state, '/settings')
+            if st.session_state.get("active_tab") != 3:
+                st.session_state.active_tab = 3
+            log_page_view(st.session_state, "/settings")
             st.info("Settings coming soon...")
     else:
-        print("Rendering non-admin interface with 3 tabs")
         tabs = st.tabs(["Dashboard", "AI Analyze", "Settings"])
-        
+
         with tabs[0]:
-            if st.session_state.get('active_tab') != 0:
-                st.session_state['active_tab'] = 0
-            print("Rendering Dashboard tab")
-            log_page_view(st.session_state, '/dashboard')
+            if st.session_state.get("active_tab") != 0:
+                st.session_state.active_tab = 0
+            log_page_view(st.session_state, "/dashboard")
             st.info("Dashboard coming soon...")
-        
+
         with tabs[1]:
-            if st.session_state.get('active_tab') != 1:
-                st.session_state['active_tab'] = 1
-            print("Rendering AI Analyze tab")
-            log_page_view(st.session_state, '/ai-analyze')
+            if st.session_state.get("active_tab") != 1:
+                st.session_state.active_tab = 1
+            log_page_view(st.session_state, "/ai-analyze")
             render_ai_analysis_page()
-        
+
         with tabs[2]:
-            if st.session_state.get('active_tab') != 2:
-                st.session_state['active_tab'] = 2
-            print("Rendering Settings tab")
-            log_page_view(st.session_state, '/settings')
+            if st.session_state.get("active_tab") != 2:
+                st.session_state.active_tab = 2
+            log_page_view(st.session_state, "/settings")
             st.info("Settings coming soon...")
 
+            
 
 if __name__ == "__main__":
     print("="*60)

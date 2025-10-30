@@ -16,59 +16,189 @@ except ImportError as e:
     print("Ensure utils/utils.py, utils/utils_system_specs.py, and utils/utils_uuid.py exist.")
     sys.exit(1)
 
-# Define tables and indexes
+
+
+# === SHARED METADATA FIELDS ===
+METADATA_FIELDS = {
+    "is_active": {
+        "primary_key": False,
+        "data_type": "INTEGER",
+        "null_constraint": "NOT NULL",
+        "column_default": 1,
+        "is_unique": False
+    },
+    "created_datetime": {
+        "primary_key": False,
+        "data_type": "TEXT",
+        "null_constraint": "NULL",
+        "column_default": None,
+        "is_unique": False
+    },
+    "created_by": {
+        "primary_key": False,
+        "data_type": "BLOB",
+        "null_constraint": "NULL",
+        "column_default": None,
+        "is_unique": False
+    },
+    "updated_datetime": {
+        "primary_key": False,
+        "data_type": "TEXT",
+        "null_constraint": "NULL",
+        "column_default": None,
+        "is_unique": False
+    },
+    "updated_by": {
+        "primary_key": False,
+        "data_type": "BLOB",
+        "null_constraint": "NULL",
+        "column_default": None,
+        "is_unique": False
+    }
+}
+
+
+# === TABLES WITH STRUCTURED SCHEMA ===
 TABLES = [
     {
         "name": "organization",
-        "create": """
-        CREATE TABLE IF NOT EXISTS organization (
-            organization_uuid BLOB PRIMARY KEY,
-            name TEXT,
-            vm_name TEXT,
-            vm_hash BLOB UNIQUE,
-            is_active INTEGER,
-            is_automation_on INTEGER,
-            created_datetime TEXT,
-            updated_datetime TEXT
-        )
-        """,
+        "columns": {
+            "organization_uuid": {
+                "primary_key": True,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "name": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "vm_name": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "vm_hash": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "is_automation_on": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NOT NULL",
+                "column_default": 0,
+                "is_unique": False
+            },
+            **METADATA_FIELDS
+        },
+        "foreign_keys": [],
         "indexes": [
             ("organization_vm_hash", "CREATE INDEX IF NOT EXISTS organization_vm_hash ON organization (vm_hash)")
         ]
     },
     {
         "name": "user_role",
-        "create": """
-        CREATE TABLE IF NOT EXISTS user_role (
-            user_role_uuid BLOB PRIMARY KEY,
-            name TEXT UNIQUE,
-            description TEXT,
-            is_active INTEGER,
-            created_datetime TEXT,
-            updated_datetime TEXT
-        )
-        """,
+        "columns": {
+            "user_role_uuid": {
+                "primary_key": True,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "name": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "description": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            **METADATA_FIELDS
+        },
+        "foreign_keys": [],
         "indexes": []
     },
     {
         "name": "user",
-        "create": """
-        CREATE TABLE IF NOT EXISTS user (
-            user_uuid BLOB PRIMARY KEY,
-            organization_uuid BLOB,
-            user_role_uuid BLOB,
-            username TEXT UNIQUE,
-            pwd TEXT,
-            first_name TEXT,
-            last_name TEXT,
-            email TEXT,
-            is_active INTEGER,
-            created_datetime TEXT,
-            updated_datetime TEXT,
-            FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid),
-            FOREIGN KEY (user_role_uuid) REFERENCES user_role (user_role_uuid)
-        )
-        """,
+        "columns": {
+            "user_uuid": {
+                "primary_key": True,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "organization_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "user_role_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "username": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "pwd": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "first_name": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "last_name": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "email": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            **METADATA_FIELDS
+        },
+        "foreign_keys": [
+            "FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid)",
+            "FOREIGN KEY (user_role_uuid) REFERENCES user_role (user_role_uuid)"
+        ],
         "indexes": [
             ("user_organization_uuid", "CREATE INDEX IF NOT EXISTS user_organization_uuid ON user (organization_uuid)"),
             ("user_role_uuid", "CREATE INDEX IF NOT EXISTS user_role_uuid ON user (user_role_uuid)")
@@ -76,121 +206,361 @@ TABLES = [
     },
     {
         "name": "automation",
-        "create": """
-        CREATE TABLE IF NOT EXISTS automation (
-            automation_uuid BLOB PRIMARY KEY,
-            organization_uuid BLOB,
-            input_directory TEXT,
-            output_directory TEXT,
-            review_directory TEXT,
-            schedule TEXT,
-            is_active INTEGER,
-            created_datetime TEXT,
-            created_by BLOB,
-            updated_datetime TEXT,
-            updated_by BLOB,
-            FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid),
-            FOREIGN KEY (created_by) REFERENCES user (user_uuid),
-            FOREIGN KEY (updated_by) REFERENCES user (user_uuid)
-        )
-        """,
+        "columns": {
+            "automation_uuid": {
+                "primary_key": True,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "organization_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "input_directory": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "output_directory": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "review_directory": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "schedule": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            **METADATA_FIELDS
+        },
+        "foreign_keys": [
+            "FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid)",
+            "FOREIGN KEY (created_by) REFERENCES user (user_uuid)",
+            "FOREIGN KEY (updated_by) REFERENCES user (user_uuid)"
+        ],
         "indexes": [
             ("automation_organization_uuid", "CREATE INDEX IF NOT EXISTS automation_organization_uuid ON automation (organization_uuid)")
         ]
     },
     {
         "name": "ocr_models",
-        "create": """
-        CREATE TABLE IF NOT EXISTS ocr_models (
-            ocr_models_uuid BLOB PRIMARY KEY,
-            name TEXT,
-            description TEXT,
-            min_storage_gb REAL,
-            min_ram_gb INTEGER,
-            gpu_required INTEGER,
-            gpu_optional INTEGER,
-            min_vram_gb INTEGER,
-            default_language TEXT,
-            default_dpi INTEGER,
-            max_pages INTEGER,
-            is_active INTEGER,
-            created_datetime TEXT,
-            updated_datetime TEXT
-        )
-        """,
+        "columns": {
+            "ocr_models_uuid": {
+                "primary_key": True,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "name": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "description": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "min_storage_gb": {
+                "primary_key": False,
+                "data_type": "REAL",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "min_ram_gb": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "gpu_required": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "gpu_optional": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "min_vram_gb": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "default_language": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "default_dpi": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "max_pages": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            **METADATA_FIELDS
+        },
+        "foreign_keys": [],
         "indexes": []
     },
     {
         "name": "llm_models",
-        "create": """
-        CREATE TABLE IF NOT EXISTS llm_models (
-            llm_model_uuid BLOB PRIMARY KEY,
-            system TEXT,
-            name TEXT,
-            description TEXT,
-            min_ram_gb INTEGER,
-            default_timeout INTEGER,
-            gpu_required INTEGER,
-            gpu_optional INTEGER,
-            min_vram_gb INTEGER,
-            is_active INTEGER,
-            created_datetime TEXT,
-            updated_datetime TEXT
-        )
-        """,
+        "columns": {
+            "llm_model_uuid": {
+                "primary_key": True,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "system": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "name": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "description": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "min_ram_gb": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "default_timeout": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "gpu_required": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "gpu_optional": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "min_vram_gb": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            **METADATA_FIELDS
+        },
+        "foreign_keys": [],
         "indexes": []
     },
     {
         "name": "stamps",
-        "create": """
-        CREATE TABLE IF NOT EXISTS stamps (
-            stamps_uuid BLOB PRIMARY KEY,
-            organization_uuid BLOB,
-            name TEXT,
-            description TEXT,
-            keywords TEXT,
-            is_active INTEGER,
-            created_datetime TEXT,
-            created_by BLOB,
-            updated_datetime TEXT,
-            updated_by BLOB,
-            FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid),
-            FOREIGN KEY (created_by) REFERENCES user (user_uuid),
-            FOREIGN KEY (updated_by) REFERENCES user (user_uuid)
-        )
-        """,
+        "columns": {
+            "stamps_uuid": {
+                "primary_key": True,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "organization_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "name": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "description": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "keywords": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            **METADATA_FIELDS
+        },
+        "foreign_keys": [
+            "FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid)",
+            "FOREIGN KEY (created_by) REFERENCES user (user_uuid)",
+            "FOREIGN KEY (updated_by) REFERENCES user (user_uuid)"
+        ],
         "indexes": [
             ("stamps_organization_uuid", "CREATE INDEX IF NOT EXISTS stamps_organization_uuid ON stamps (organization_uuid)")
         ]
     },
     {
         "name": "category",
-        "create": """
-        CREATE TABLE IF NOT EXISTS category (
-            category_uuid BLOB PRIMARY KEY,
-            parent_category_uuid BLOB,
-            organization_uuid BLOB,
-            name TEXT,
-            hierarchy_level INTEGER,
-            use_stamps INTEGER,
-            stamps_uuid BLOB,
-            description TEXT,
-            keywords TEXT,
-            min_threshold REAL,
-            exclusion_rules TEXT,
-            file_rename_rules TEXT,
-            is_active INTEGER,
-            created_datetime TEXT,
-            created_by BLOB,
-            updated_datetime TEXT,
-            updated_by BLOB,
-            FOREIGN KEY (parent_category_uuid) REFERENCES category (category_uuid),
-            FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid),
-            FOREIGN KEY (stamps_uuid) REFERENCES stamps (stamps_uuid),
-            FOREIGN KEY (created_by) REFERENCES user (user_uuid),
-            FOREIGN KEY (updated_by) REFERENCES user (user_uuid)
-        )
-        """,
+        "columns": {
+            "category_uuid": {
+                "primary_key": True,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "parent_category_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "organization_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "name": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "hierarchy_level": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "use_stamps": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "stamps_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "description": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "keywords": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "min_threshold": {
+                "primary_key": False,
+                "data_type": "REAL",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "exclusion_rules": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "file_rename_rules": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            **METADATA_FIELDS
+        },
+        "foreign_keys": [
+            "FOREIGN KEY (parent_category_uuid) REFERENCES category (category_uuid)",
+            "FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid)",
+            "FOREIGN KEY (stamps_uuid) REFERENCES stamps (stamps_uuid)",
+            "FOREIGN KEY (created_by) REFERENCES user (user_uuid)",
+            "FOREIGN KEY (updated_by) REFERENCES user (user_uuid)"
+        ],
         "indexes": [
             ("category_parent_category_uuid", "CREATE INDEX IF NOT EXISTS category_parent_category_uuid ON category (parent_category_uuid)"),
             ("category_organization_uuid", "CREATE INDEX IF NOT EXISTS category_organization_uuid ON category (organization_uuid)"),
@@ -199,17 +569,52 @@ TABLES = [
     },
     {
         "name": "logging",
-        "create": """
-        CREATE TABLE IF NOT EXISTS logging (
-            logging_uuid BLOB PRIMARY KEY,
-            organization_uuid BLOB,
-            user_uuid BLOB,
-            page TEXT,
-            message TEXT,
-            level TEXT,
-            created_datetime TEXT
-        )
-        """,
+        "columns": {
+            "logging_uuid": {
+                "primary_key": True,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "organization_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "user_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "page": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "message": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "level": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            **METADATA_FIELDS
+        },
+        "foreign_keys": [],
         "indexes": [
             ("logging_organization_uuid", "CREATE INDEX IF NOT EXISTS logging_organization_uuid ON logging (organization_uuid)"),
             ("logging_user_uuid", "CREATE INDEX IF NOT EXISTS logging_user_uuid ON logging (user_uuid)"),
@@ -219,22 +624,63 @@ TABLES = [
     },
     {
         "name": "batch",
-        "create": """
-        CREATE TABLE IF NOT EXISTS batch (
-            batch_uuid BLOB PRIMARY KEY,
-            organization_uuid BLOB,
-            automation_uuid BLOB,
-            system_metadata TEXT,
-            status TEXT,
-            number_of_files INTEGER,
-            process_time INTEGER,
-            created_datetime TEXT,
-            created_by BLOB,
-            FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid),
-            FOREIGN KEY (automation_uuid) REFERENCES automation (automation_uuid),
-            FOREIGN KEY (created_by) REFERENCES user (user_uuid)
-        )
-        """,
+        "columns": {
+            "batch_uuid": {
+                "primary_key": True,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "organization_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "automation_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "system_metadata": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "status": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "number_of_files": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "process_time": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            **METADATA_FIELDS
+        },
+        "foreign_keys": [
+            "FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid)",
+            "FOREIGN KEY (automation_uuid) REFERENCES automation (automation_uuid)",
+            "FOREIGN KEY (created_by) REFERENCES user (user_uuid)"
+        ],
         "indexes": [
             ("batch_organization_uuid", "CREATE INDEX IF NOT EXISTS batch_organization_uuid ON batch (organization_uuid)"),
             ("batch_automation_uuid", "CREATE INDEX IF NOT EXISTS batch_automation_uuid ON batch (automation_uuid)")
@@ -242,25 +688,57 @@ TABLES = [
     },
     {
         "name": "document",
-        "create": """
-        CREATE TABLE IF NOT EXISTS document (
-            document_uuid BLOB PRIMARY KEY,
-            organization_uuid BLOB,
-            batch_uuid BLOB,
-            upload_name TEXT,
-            upload_folder TEXT,
-            pdf BLOB,
-            is_active INTEGER,
-            created_datetime TEXT,
-            created_by BLOB,
-            updated_datetime TEXT,
-            updated_by BLOB,
-            FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid),
-            FOREIGN KEY (batch_uuid) REFERENCES batch (batch_uuid),
-            FOREIGN KEY (created_by) REFERENCES user (user_uuid),
-            FOREIGN KEY (updated_by) REFERENCES user (user_uuid)
-        )
-        """,
+        "columns": {
+            "document_uuid": {
+                "primary_key": True,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "organization_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "batch_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "upload_name": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "upload_folder": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "pdf": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            **METADATA_FIELDS
+        },
+        "foreign_keys": [
+            "FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid)",
+            "FOREIGN KEY (batch_uuid) REFERENCES batch (batch_uuid)",
+            "FOREIGN KEY (created_by) REFERENCES user (user_uuid)",
+            "FOREIGN KEY (updated_by) REFERENCES user (user_uuid)"
+        ],
         "indexes": [
             ("document_organization_uuid", "CREATE INDEX IF NOT EXISTS document_organization_uuid ON document (organization_uuid)"),
             ("document_batch_uuid", "CREATE INDEX IF NOT EXISTS document_batch_uuid ON document (batch_uuid)")
@@ -268,33 +746,95 @@ TABLES = [
     },
     {
         "name": "document_category",
-        "create": """
-        CREATE TABLE IF NOT EXISTS document_category (
-            document_category_uuid BLOB PRIMARY KEY,
-            organization_uuid BLOB,
-            document_uuid BLOB,
-            category_uuid BLOB,
-            stamps_uuid BLOB,
-            category_confidence REAL,
-            all_category_confidence TEXT,
-            ocr_text TEXT,
-            ocr_text_confidence TEXT,
-            override_category_uuid BLOB,
-            override_context TEXT,
-            is_active INTEGER,
-            created_datetime TEXT,
-            created_by BLOB,
-            updated_datetime TEXT,
-            updated_by BLOB,
-            FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid),
-            FOREIGN KEY (document_uuid) REFERENCES document (document_uuid),
-            FOREIGN KEY (category_uuid) REFERENCES category (category_uuid),
-            FOREIGN KEY (stamps_uuid) REFERENCES stamps (stamps_uuid),
-            FOREIGN KEY (override_category_uuid) REFERENCES category (category_uuid),
-            FOREIGN KEY (created_by) REFERENCES user (user_uuid),
-            FOREIGN KEY (updated_by) REFERENCES user (user_uuid)
-        )
-        """,
+        "columns": {
+            "document_category_uuid": {
+                "primary_key": True,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "organization_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "document_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "category_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "stamps_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "category_confidence": {
+                "primary_key": False,
+                "data_type": "REAL",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "all_category_confidence": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "ocr_text": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "ocr_text_confidence": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "override_category_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "override_context": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            **METADATA_FIELDS
+        },
+        "foreign_keys": [
+            "FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid)",
+            "FOREIGN KEY (document_uuid) REFERENCES document (document_uuid)",
+            "FOREIGN KEY (category_uuid) REFERENCES category (category_uuid)",
+            "FOREIGN KEY (stamps_uuid) REFERENCES stamps (stamps_uuid)",
+            "FOREIGN KEY (override_category_uuid) REFERENCES category (category_uuid)",
+            "FOREIGN KEY (created_by) REFERENCES user (user_uuid)",
+            "FOREIGN KEY (updated_by) REFERENCES user (user_uuid)"
+        ],
         "indexes": [
             ("document_category_organization_uuid", "CREATE INDEX IF NOT EXISTS document_category_organization_uuid ON document_category (organization_uuid)"),
             ("document_category_document_uuid", "CREATE INDEX IF NOT EXISTS document_category_document_uuid ON document_category (document_uuid)"),
@@ -304,6 +844,10 @@ TABLES = [
         ]
     }
 ]
+
+
+TABLES_METADATA = {table["name"]: list(table["columns"].keys()) for table in TABLES}
+
 
 # Define sample data inserts with UUID keys
 INSERTS = [

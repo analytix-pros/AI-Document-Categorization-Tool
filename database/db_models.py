@@ -1,12 +1,15 @@
 """Database models – dict-based, DRY, UUID-strategy driven, with console debug."""
 import sqlite3
 import os
+from typing import Any, Dict, List, Tuple, Optional
 
 from config.config import FULL_DATABASE_FILE_PATH
+from initial_setup.config import METADATA_FIELDS  # <-- Imported from config
 from utils.utils_uuid import derive_uuid, generate_uuid
 from utils.utils import get_utc_datetime
 from utils.utils_system_specs import get_hostname
-from utils.utils_logging import log_database_operation  # <-- only this
+from utils.utils_logging import log_database_operation
+import streamlit as st
 
 
 # --------------------------------------------------------------------------- #
@@ -37,89 +40,109 @@ UUID_STRATEGIES = {
 
 
 # --------------------------------------------------------------------------- #
-# SQL BUILDERS
+# HELPERS
 # --------------------------------------------------------------------------- #
-def _build_insert_sql(table, data, uuid_field, uuid_val):
+def _current_user_uuid() -> bytes:
+    """Return the logged-in user UUID (BLOB) from Streamlit session_state."""
+    if "user_uuid" not in st.session_state:
+        raise RuntimeError("User is not logged in – session_state['user_uuid'] missing.")
+    return st.session_state["user_uuid"]
+
+
+# --------------------------------------------------------------------------- #
+# TABLE-SPECIFIC BUSINESS FIELDS (required + optional)
+# --------------------------------------------------------------------------- #
+TABLE_REQUIRED_FIELDS: Dict[str, List[str]] = {
+    "organization": ["name"],
+    "user_role": ["name"],
+    "user": ["username", "user_role_uuid", "pwd"],
+    "automation": ["organization_uuid", "input_directory", "output_directory", "review_directory", "schedule"],
+    "ocr_models": ["name", "default_language", "default_dpi", "max_pages"],
+    "llm_models": ["system", "name", "description", "min_ram_gb", "default_timeout", "gpu_required", "gpu_optional", "min_vram_gb"],
+    "category": ["organization_uuid", "name", "hierarchy_level"],
+    "stamps": ["organization_uuid", "name"],
+    # NOTE: created_by removed – it is now metadata
+    "batch": ["organization_uuid", "system_metadata", "status", "number_of_files", "process_time"],
+    "document": ["organization_uuid", "batch_uuid", "upload_name"],
+    "document_category": ["organization_uuid", "document_uuid"],
+}
+
+TABLE_OPTIONAL_FIELDS: Dict[str, List[str]] = {
+    "organization": ["vm_name", "is_automation_on"],
+    "user_role": ["description"],
+    "user": ["first_name", "last_name", "email", "organization_uuid"],
+    "automation": ["created_by", "updated_by"],  # kept only for legacy – will be ignored
+    "ocr_models": [],
+    "llm_models": [],
+    "category": ["parent_category_uuid", "use_stamps", "stamps_uuid", "description", "keywords", "file_rename_rules", "created_by", "updated_by"],
+    "stamps": ["description", "keywords", "created_by", "updated_by"],
+    "batch": ["automation_uuid"],
+    "document": ["upload_folder", "pdf", "created_by", "updated_by"],
+    "document_category": [
+        "category_uuid", "stamps_uuid", "category_confidence", "all_category_confidence",
+        "ocr_text", "ocr_text_confidence", "override_category_uuid", "override_context",
+        "created_by", "updated_by",
+    ],
+}
+
+
+# --------------------------------------------------------------------------- #
+# SQL BUILDERS – fully generic, metadata always included
+# --------------------------------------------------------------------------- #
+def _build_insert_sql(table: str, data: Dict[str, Any], uuid_field: str, uuid_val: bytes) -> Tuple[str, List[Any]]:
     now = get_utc_datetime()
-    fields = [uuid_field]
-    placeholders = ['?']
-    values = [uuid_val]
+    user_uuid = _current_user_uuid()
 
-    required = {
-        "organization": ["name"],
-        "user_role": ["name"],
-        "user": ["username", "user_role_uuid", "pwd"],
-        "automation": ["organization_uuid", "input_directory", "output_directory", "review_directory", "schedule"],
-        "ocr_models": ["name", "default_language", "default_dpi", "max_pages"],
-        "llm_models": ["system", "name", "description", "min_ram_gb", "default_timeout", "gpu_required", "gpu_optional", "min_vram_gb"],
-        "category": ["organization_uuid", "name", "hierarchy_level"],
-        "stamps": ["organization_uuid", "name"],
-        "batch": ["organization_uuid", "system_metadata", "status", "number_of_files", "process_time", "created_by"],
-        "document": ["organization_uuid", "batch_uuid", "upload_name"],
-        "document_category": ["organization_uuid", "document_uuid"],
-    }.get(table, [])
+    fields: List[str] = [uuid_field]
+    placeholders: List[str] = ["?"]
+    values: List[Any] = [uuid_val]
 
-    for f in required:
+    # 1. Required business fields
+    for f in TABLE_REQUIRED_FIELDS.get(table, []):
         if f not in data:
-            raise ValueError(f"Missing required field '{f}' for {table}")
+            raise ValueError(f"Missing required field '{f}' for table '{table}'")
         fields.append(f)
-        placeholders.append('?')
+        placeholders.append("?")
         values.append(data[f])
 
-    optional = {
-        "organization": ["vm_name", "is_active", "is_automation_on"],
-        "user_role": ["description", "is_active"],
-        "user": ["first_name", "last_name", "email", "is_active", "organization_uuid"],
-        "automation": ["is_active", "created_by", "updated_by"],
-        "ocr_models": ["is_active"],
-        "llm_models": ["is_active"],
-        "category": ["parent_category_uuid", "use_stamps", "stamps_uuid", "description", "keywords", "file_rename_rules", "is_active", "created_by", "updated_by"],
-        "stamps": ["description", "keywords", "is_active", "created_by", "updated_by"],
-        "batch": ["automation_uuid"],
-        "document": ["upload_folder", "pdf", "is_active", "created_by", "updated_by"],
-        "document_category": ["category_uuid", "stamps_uuid", "category_confidence", "all_category_confidence",
-                              "ocr_text", "ocr_text_confidence", "override_category_uuid", "override_context",
-                              "is_active", "created_by", "updated_by"],
-    }.get(table, [])
-
-    for f in optional:
+    # 2. Optional business fields
+    for f in TABLE_OPTIONAL_FIELDS.get(table, []):
         if f in data:
             fields.append(f)
-            placeholders.append('?')
+            placeholders.append("?")
             values.append(data[f])
 
-    fields.extend(["created_datetime", "updated_datetime"])
-    placeholders.extend(['?', '?'])
-    values.extend([now, now])
+    # 3. METADATA FIELDS – always added
+    fields.append("is_active")
+    placeholders.append("?")
+    values.append(data.get("is_active", 1))
 
+    fields.extend(["created_datetime", "created_by"])
+    placeholders.extend(["?", "?"])
+    values.extend([now, user_uuid])
+
+    fields.extend(["updated_datetime", "updated_by"])
+    placeholders.extend(["?", "?"])
+    values.extend([now, user_uuid])
+
+    # 4. Special: organization.vm_hash
     if table == "organization" and "vm_name" in data:
         fields.append("vm_hash")
-        placeholders.append('?')
+        placeholders.append("?")
         values.append(derive_uuid(get_hostname()))
 
     sql = f"INSERT INTO {table} ({', '.join(fields)}) VALUES ({', '.join(placeholders)})"
     return sql, values
 
 
-def _build_update_sql(table, data, uuid_field, uuid_val):
+def _build_update_sql(table: str, data: Dict[str, Any], uuid_field: str, uuid_val: bytes) -> Tuple[Optional[str], Optional[List[Any]]]:
     now = get_utc_datetime()
-    updates = []
-    params = []
+    user_uuid = _current_user_uuid()
 
-    updatable = {
-        "organization": ["name", "vm_name", "is_active", "is_automation_on"],
-        "user_role": ["name", "description", "is_active"],
-        "user": ["user_role_uuid", "username", "pwd", "first_name", "last_name", "email", "is_active", "organization_uuid"],
-        "automation": ["organization_uuid", "input_directory", "output_directory", "review_directory", "schedule", "is_active", "updated_by"],
-        "ocr_models": ["name", "default_language", "default_dpi", "max_pages", "is_active"],
-        "llm_models": ["system", "name", "description", "min_ram_gb", "default_timeout", "gpu_required", "gpu_optional", "min_vram_gb", "is_active"],
-        "category": ["organization_uuid", "name", "hierarchy_level", "parent_category_uuid", "use_stamps", "stamps_uuid", "description", "keywords", "file_rename_rules", "is_active", "updated_by"],
-        "stamps": ["organization_uuid", "name", "description", "keywords", "is_active", "updated_by"],
-        "batch": ["organization_uuid", "automation_uuid", "system_metadata", "status", "process_time"],
-        "document": ["organization_uuid", "upload_name", "upload_folder", "pdf", "is_active", "updated_by"],
-        "document_category": ["category_uuid", "stamps_uuid", "category_confidence", "all_category_confidence", "ocr_text", "ocr_text_confidence", "override_category_uuid", "override_context", "is_active", "updated_by"],
-    }.get(table, [])
+    updates: List[str] = []
+    params: List[Any] = []
 
+    updatable = TABLE_REQUIRED_FIELDS.get(table, []) + TABLE_OPTIONAL_FIELDS.get(table, [])
     for f in updatable:
         if f in data:
             updates.append(f"{f} = ?")
@@ -134,9 +157,11 @@ def _build_update_sql(table, data, uuid_field, uuid_val):
 
     updates.append("updated_datetime = ?")
     params.append(now)
-    params.append(uuid_val)
+    updates.append("updated_by = ?")
+    params.append(user_uuid)
 
     sql = f"UPDATE {table} SET {', '.join(updates)} WHERE {uuid_field} = ?"
+    params.append(uuid_val)
     return sql, params
 
 
@@ -144,14 +169,15 @@ def _build_update_sql(table, data, uuid_field, uuid_val):
 # BASE MODEL
 # --------------------------------------------------------------------------- #
 class BaseModel:
-    def __init__(self, table, uuid_field):
+    def __init__(self, table: str, uuid_field: str):
         self.table = table
         self.uuid_field = uuid_field
 
-    def insert(self, session_state, page_name, data):
+    def insert(self, session_state, page_name: str, data: Dict[str, Any]) -> bytes:
         print(f"\n[DB INSERT] Table: {self.table} | Page: {page_name}")
         print(f"    Data: {data}")
 
+        conn = None  # ← ensure defined
         try:
             strategy = UUID_STRATEGIES.get(self.table)
             if not strategy:
@@ -182,10 +208,11 @@ class BaseModel:
             print(f"    UNEXPECTED ERROR: {e}")
             raise
         finally:
-            conn.close()
-            print(f"[DB] Connection closed.\n")
+            if conn:
+                conn.close()
+                print(f"[DB] Connection closed.\n")
 
-    def update(self, session_state, page_name, uuid_val, data):
+    def update(self, session_state, page_name: str, uuid_val: bytes, data: Dict[str, Any]) -> None:
         if not data:
             print(f"[DB UPDATE] No data for {self.table} UUID={uuid_val}. Skipping.")
             return
@@ -193,6 +220,7 @@ class BaseModel:
         print(f"\n[DB UPDATE] Table: {self.table} | UUID: {uuid_val} | Page: {page_name}")
         print(f"    Updating: {list(data.keys())}")
 
+        conn = None
         try:
             sql, params = _build_update_sql(self.table, data, self.uuid_field, uuid_val)
             if not sql:
@@ -217,10 +245,11 @@ class BaseModel:
             log_database_operation(session_state, page_name, "UPDATE", self.table, success=False, error_msg=error_msg)
             raise ValueError(f"Failed to update {self.table}: {error_msg}")
         finally:
-            conn.close()
-            print(f"[DB] Connection closed.\n")
+            if conn:
+                conn.close()
+                print(f"[DB] Connection closed.\n")
 
-    def delete(self, session_state, page_name, uuid_val):
+    def delete(self, session_state, page_name: str, uuid_val: bytes) -> None:
         print(f"\n[DB DELETE] Soft-delete {self.table} | UUID: {uuid_val} | Page: {page_name}")
         self.update(session_state, page_name, uuid_val, {"is_active": 0})
 
@@ -264,7 +293,7 @@ class Batch(BaseModel):
     def __init__(self):
         super().__init__("batch", "batch_uuid")
 
-    def delete(self, session_state, page_name, uuid_val):
+    def delete(self, session_state, page_name: str, uuid_val: bytes) -> None:
         print(f"[DB] Batch records cannot be deleted. UUID: {uuid_val}")
         raise NotImplementedError("Batch records cannot be deleted.")
 

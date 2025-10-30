@@ -2,7 +2,7 @@
 import streamlit as st
 import sqlite3
 from config.config import FULL_DATABASE_FILE_PATH
-from utils.utils_logging import log_authentication, log_page_view
+from utils.utils_logging import log_authentication, log_landing_page
 from utils.utils_uuid import derive_uuid
 
 
@@ -57,12 +57,13 @@ def render_login_page(authenticate_callback):
         authenticate_callback: Function to call for authentication (username, password) -> (success, message)
     """
     
-    st.title("AI Document Management System")
+    st.title("AI Document Labeling System")
     
     col1, col2, col3 = st.columns([1, 2, 1])
 
     # Log page view
-    log_page_view(st.session_state, '/login')
+    log_landing_page(st.session_state, '/login')
+    # log_page_view(st.session_state, '/login')
     print("=== LOGIN PAGE VIEWED ===")
     
     with col2:
