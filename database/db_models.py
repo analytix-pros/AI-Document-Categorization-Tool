@@ -58,7 +58,7 @@ TABLE_REQUIRED_FIELDS: Dict[str, List[str]] = {
     "user": ["username", "user_role_uuid", "pwd"],
     "automation": ["organization_uuid", "input_directory", "output_directory", "review_directory", "schedule"],
     "ocr_models": ["name", "default_language", "default_dpi", "max_pages"],
-    "llm_models": ["system", "name", "description", "min_ram_gb", "default_timeout", "gpu_required", "gpu_optional", "min_vram_gb"],
+    "llm_models": ["system", "name", "description", "min_ram_gb", "default_timeout", "gpu_required", "gpu_optional", "min_vram_gb", "is_vision_capable"],
     "category": ["organization_uuid", "name", "hierarchy_level"],
     "stamps": ["organization_uuid", "name"],
     "batch": ["organization_uuid", "system_metadata", "status", "number_of_files", "process_time"],

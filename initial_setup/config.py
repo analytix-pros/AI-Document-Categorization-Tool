@@ -466,6 +466,13 @@ TABLES = [
                 "column_default": None,
                 "is_unique": False
             },
+            "is_vision_capable": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": 0,
+                "is_unique": False
+            },
             **METADATA_FIELDS
         },
         "foreign_keys": [],
@@ -996,7 +1003,7 @@ INSERTS = [
         "columns": [
             "llm_model_uuid", "system", "name", "description", "min_ram_gb",
             "default_timeout", "gpu_required", "gpu_optional", "min_vram_gb",
-            "is_active", "created_datetime", "updated_datetime"
+            "is_text_only", "is_active", "created_datetime", "updated_datetime"
         ],
         "uuid_keys": {"llm_model_uuid": ["system", "name"]},
         "data": [
@@ -1008,7 +1015,8 @@ INSERTS = [
                 "default_timeout": 300,
                 "gpu_required": 0,
                 "gpu_optional": 1,
-                "min_vram_gb": 4
+                "min_vram_gb": 4,
+                "is_vision_capable": 1
             },
             {
                 "name": "llava:7b:latest",
@@ -1018,7 +1026,8 @@ INSERTS = [
                 "default_timeout": 60,
                 "gpu_required": 1,
                 "gpu_optional": 0,
-                "min_vram_gb": 8
+                "min_vram_gb": 8,
+                "is_vision_capable": 1
             },
             {
                 "name": "llava:13b:latest",
@@ -1028,7 +1037,8 @@ INSERTS = [
                 "default_timeout": 60,
                 "gpu_required": 1,
                 "gpu_optional": 0,
-                "min_vram_gb": 16
+                "min_vram_gb": 16,
+                "is_vision_capable": 1
             },
             {
                 "name": "qwen2-vl:7b:latest",
@@ -1038,7 +1048,8 @@ INSERTS = [
                 "default_timeout": 60,
                 "gpu_required": 1,
                 "gpu_optional": 0,
-                "min_vram_gb": 8
+                "min_vram_gb": 8,
+                "is_vision_capable": 1
             },
             {
                 "name": "mistral:latest",
@@ -1048,7 +1059,8 @@ INSERTS = [
                 "default_timeout": 60,
                 "gpu_required": 0,
                 "gpu_optional": 0,
-                "min_vram_gb": 0
+                "min_vram_gb": 0,
+                "is_vision_capable": 0
             }
         ]
     },
