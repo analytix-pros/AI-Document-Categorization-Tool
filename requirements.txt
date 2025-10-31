@@ -10,6 +10,7 @@ utils
 # ============================
 streamlit==1.50.0
 streamlit_pdf_viewer
+streamlit-aggrid
 st-mui-table
 sqlalchemy
 opencv-python

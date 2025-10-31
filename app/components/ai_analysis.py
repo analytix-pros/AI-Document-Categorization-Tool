@@ -1,17 +1,27 @@
 """AI Analysis component - combines upload and AI categorization process."""
+# ============================================================================
+# Imports
+# ============================================================================
 import streamlit as st
 import json
 import time
 import random
 import base64
+import pandas as pd
 from io import BytesIO
 from datetime import datetime
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from app.components.system_status import prepare_ollama_models_background, check_system_ready_for_upload
 from database.db_models import create_connection, Batch, Document, DocumentCategory
 from utils.utils_system_specs import get_system_specs
 from utils.ocr_processing import process_document_with_available_ocr, convert_pdf_to_image_bytes
+from utils.llm_processing import process_document_categorization
 from utils.utils import custom_badge
 
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
 
 # --------------------------------------------------------------
 #  Helper – turn a bytes object into a data-uri that st.components.v1.html can display
@@ -22,23 +32,38 @@ def _pdf_to_data_uri(pdf_bytes: bytes) -> str:
     return f"data:application/pdf;base64,{b64}"
 
 
+# ============================================================================
+# Main Page Rendering
+# ============================================================================
+
 def render_ai_analysis_page():
     """Main render function for combined AI Analysis tab."""
     print("\n" + "="*80)
     print("RENDER_AI_ANALYSIS_PAGE - Starting")
     print("="*80)
     
+    # ------------------------------------------------------------------------
+    # Initialize session state for uploaded files if not present
+    # ------------------------------------------------------------------------
     if 'uploaded_files' not in st.session_state:
         print("Initializing 'uploaded_files' in session state")
         st.session_state['uploaded_files'] = []
     
+    # ------------------------------------------------------------------------
+    # Retrieve flag to start categorization process
+    # ------------------------------------------------------------------------
     start_categorization = st.session_state.get('start_categorization', False)
     print(f"Start categorization flag: {start_categorization}")
     
-    # Always render upload section (disabled if started)
+    # ------------------------------------------------------------------------
+    # Always render the upload section (disabled during processing)
+    # ------------------------------------------------------------------------
     print("Rendering upload section...")
     render_upload_section(disabled=start_categorization)
     
+    # ------------------------------------------------------------------------
+    # If categorization has started, render analysis workflow
+    # ------------------------------------------------------------------------
     if start_categorization:
         print("Rendering analysis workflow elements...")
         st.markdown("---")
@@ -46,11 +71,14 @@ def render_ai_analysis_page():
         st.markdown("---")
         st.markdown("---")
         render_analysis_content()
-        # st.markdown("---")
         render_button_row()
     
     print("="*80 + "\n")
 
+
+# ============================================================================
+# Upload Section Rendering
+# ============================================================================
 
 def render_upload_section(disabled: bool = False):
     """Render document upload section, disabled if processing started."""
@@ -58,12 +86,19 @@ def render_upload_section(disabled: bool = False):
     print(f"RENDER_UPLOAD_SECTION - Starting (disabled={disabled})")
     print("="*80)
     
+    # ------------------------------------------------------------------------
+    # Layout: Upload column, spacer, Process column
+    # ------------------------------------------------------------------------
     col_upload, _, col_process = st.columns([5, 1, 4])
     
+    # ------------------------------------------------------------------------
+    # Upload Column: File uploader or static info
+    # ------------------------------------------------------------------------
     with col_upload:
         st.markdown("#### Upload Files")
         
         if not disabled:
+            # Active file uploader
             uploaded_files = st.file_uploader(
                 "Choose files",
                 accept_multiple_files=True,
@@ -83,6 +118,9 @@ def render_upload_section(disabled: bool = False):
             file_count = len(st.session_state.get('uploaded_files', []))
             st.info(f"{file_count} document(s) uploaded and processing...")
     
+    # ------------------------------------------------------------------------
+    # Process Column: Show readiness and action buttons
+    # ------------------------------------------------------------------------
     with col_process:
         uploaded_files = st.session_state.get('uploaded_files', [])
         if uploaded_files:
@@ -107,9 +145,9 @@ def render_upload_section(disabled: bool = False):
                     # Two disabled buttons side-by-side
                     btn_col1, btn_col2 = st.columns(2)
                     with btn_col1:
-                        st.button("Start AI Analysis", type="primary", disabled=True, width='stretch')
+                        st.button("Start AI Analysis", type="primary", disabled=True, use_container_width=True)
                     with btn_col2:
-                        if st.button("Clear Upload", width='stretch'):
+                        if st.button("Clear Upload", use_container_width=True):
                             print("User clicked 'Clear Upload' button")
                             st.session_state['uploaded_files'] = []
                             clear_analysis_session()
@@ -120,20 +158,22 @@ def render_upload_section(disabled: bool = False):
                     # Two active buttons side-by-side
                     btn_col1, btn_col2 = st.columns(2)
                     with btn_col1:
-                        if st.button("Start AI Analysis", type="primary", width='stretch'):
+                        if st.button("Start AI Analysis", type="primary", use_container_width=True):
                             print("User clicked 'Start AI Analysis' button")
                             create_batch_and_documents()
                             st.session_state['start_categorization'] = True
                             print("Set start_categorization to True, triggering rerun")
                             st.rerun()
                     with btn_col2:
-                        if st.button("Clear Upload", width='stretch'):
+                        if st.button("Clear Upload", use_container_width=True):
                             print("User clicked 'Clear Upload' button")
                             st.session_state['uploaded_files'] = []
                             clear_analysis_session()
                             st.rerun()
 
-        # No buttons when disabled
+        # ------------------------------------------------------------------------
+        # No files uploaded: show placeholder
+        # ------------------------------------------------------------------------
         else:
             st.markdown("#### Ready to Process")
             st.info("Upload files to begin processing")
@@ -142,12 +182,19 @@ def render_upload_section(disabled: bool = False):
     print("="*80 + "\n")
 
 
+# ============================================================================
+# Batch and Document Creation
+# ============================================================================
+
 def create_batch_and_documents():
     """Create batch record and insert all uploaded documents into database."""
     print("\n" + "="*80)
     print("CREATE_BATCH_AND_DOCUMENTS - Starting")
     print("="*80)
     
+    # ------------------------------------------------------------------------
+    # Retrieve session context
+    # ------------------------------------------------------------------------
     org_uuid = st.session_state.get('org_uuid', '')
     user_uuid = st.session_state.get('user_uuid')
     uploaded_files = st.session_state.get('uploaded_files', [])
@@ -157,11 +204,17 @@ def create_batch_and_documents():
     print(f"User UUID: {user_uuid}")
     print(f"Number of files to process: {number_of_files}")
     
+    # ------------------------------------------------------------------------
+    # Validate required data
+    # ------------------------------------------------------------------------
     if not org_uuid or not user_uuid or not uploaded_files:
         print("ERROR: Missing required information")
         st.error("Missing required information to create batch")
         return None
     
+    # ------------------------------------------------------------------------
+    # Gather system specifications for metadata
+    # ------------------------------------------------------------------------
     print("\nGathering system specs...")
     system_specs = get_system_specs()
     system_metadata_json = system_specs
@@ -186,6 +239,7 @@ def create_batch_and_documents():
     batch_uuid = batch.insert(st.session_state, '/ai-analyze', batch_data)
     print(f"Success: Batch created successfully: {batch_uuid}")
     
+    # Store batch info in session
     st.session_state['batch_uuid'] = batch_uuid
     st.session_state['batch_start_time'] = time.time()
     print(f"Batch start time recorded: {st.session_state['batch_start_time']}")
@@ -200,7 +254,7 @@ def create_batch_and_documents():
         pdf_bytes = uploaded_file.getvalue()
         print(f"  PDF size: {len(pdf_bytes)} bytes")
         
-        # Convert PDF pages to PNG image bytes
+        # Convert PDF pages to PNG image bytes for OCR fallback
         print("  Converting PDF to image...")
         image_bytes = convert_pdf_to_image_bytes(pdf_bytes)
         print(f"  Image size: {len(image_bytes)} bytes")
@@ -237,6 +291,10 @@ def create_batch_and_documents():
     return batch_uuid
 
 
+# ============================================================================
+# Document Processing (OCR + LLM)
+# ============================================================================
+
 def render_document_processing():
     """Render document processing step - separated into OCR and LLM phases."""
     print("\n" + "="*80)
@@ -250,7 +308,9 @@ def render_document_processing():
     print(f"Total files to process: {total_files}")
     print(f"Document UUIDs available: {len(document_uuids)}")
     
-    # Initialize processing state
+    # ------------------------------------------------------------------------
+    # Initialize processing state on first run
+    # ------------------------------------------------------------------------
     if 'current_file_index' not in st.session_state:
         print("Initializing processing state...")
         st.session_state['current_file_index'] = 0
@@ -264,7 +324,9 @@ def render_document_processing():
     print(f"Current file index: {current_index}")
     print(f"OCR phase complete: {ocr_complete}")
     
+    # ============================================================================
     # PHASE 1: OCR Processing
+    # ============================================================================
     if not ocr_complete:
         st.markdown("### Step 2A: OCR Text Extraction")
         print("\n--- PHASE 1: OCR Processing ---")
@@ -344,7 +406,9 @@ def render_document_processing():
             time.sleep(1)
             st.rerun()
     
+    # ============================================================================
     # PHASE 2: LLM Categorization
+    # ============================================================================
     else:
         st.markdown("### Step 2B: AI Categorization")
         print("\n--- PHASE 2: LLM Categorization ---")
@@ -382,47 +446,81 @@ def render_document_processing():
                 ocr_text_json = row[0]
                 print(f"Success: OCR text retrieved from database: {len(ocr_text_json)} characters")
                 
-                # TODO: Feed OCR text to LLM for categorization
-                print("\nTODO: Feeding OCR text to LLM models for categorization...")
-                print("  - This is where you would call your LLM categorization function")
-                print("  - Pass the OCR text to multiple LLM models")
-                print("  - Aggregate confidence scores")
-                print("  - Determine final category")
+                # Process LLM categorization
+                print("\nProcessing LLM categorization...")
+                org_uuid = st.session_state.get('org_uuid')
                 
-                # Placeholder LLM results
-                llm_category = random.choice(['Garnishments', 'Transcript of Judgments', 'Service'])
-                llm_confidence = random_number = random.uniform(0.50, 0.90)
-                llm_subcategory = random.choice(['Bank Garn', 'Wage Garn', 'Rejected TOJ', 'Accepted TOJ'])
-                llm_stamp = random.choice(['FILED', 'SERVED', 'RECORDED', 'ISSUED', '', '', '', ''])
+                # Parse OCR text JSON to get the first available OCR result
+                ocr_data = json.loads(ocr_text_json)
+                ocr_text = ""
                 
-                print(f"\nLLM Results (placeholder):")
-                print(f"  Category: {llm_category}")
-                print(f"  Confidence: {llm_confidence}")
-                print(f"  Subcategory: {llm_subcategory}")
-                print(f"  Stamp: {llm_stamp}")
+                # Extract text from first successful OCR model
+                for model_name, model_result in ocr_data.items():
+                    if model_name != 'error' and isinstance(model_result, dict):
+                        pages = []
+                        for page_key, page_text in model_result.items():
+                            pages.append(page_text)
+                        ocr_text = "\n\n".join(pages)
+                        print(f"Using OCR text from {model_name}: {len(ocr_text)} characters")
+                        break
                 
-                # Update result
-                result['category'] = llm_category
-                result['confidence'] = llm_confidence
-                result['subcategory'] = llm_subcategory
-                result['stamp_detected'] = llm_stamp
-                
-                # Update document_category with LLM results
-                print("\nUpdating document_category with LLM results...")
-                doc_category = DocumentCategory()
-                update_data = {
-                    "category_uuid": None,
-                    "category_confidence": llm_confidence,
-                    "all_category_confidence": json.dumps({"placeholder": llm_confidence}, indent=4, default=str)
-                }
-                
-                doc_category.update(
-                    st.session_state, 
-                    '/ai-analyze', 
-                    result['document_category_uuid'], 
-                    update_data
-                )
-                print("Success: Document_category updated with LLM results")
+
+                # ============================================================================
+                # Run LLM Process
+                # ============================================================================
+                if not ocr_text:
+                    print("ERROR: No OCR text available for LLM processing")
+                    result['category'] = 'ERROR'
+                    result['confidence'] = 0.0
+                    result['subcategory'] = None
+                    result['stamp_detected'] = None
+                else:
+                    # Call LLM processing
+                    llm_results = process_document_categorization(
+                        document_uuid=result['document_uuid'],
+                        organization_uuid=org_uuid,
+                        ocr_text=ocr_text
+                    )
+                    
+                    print(f"\nLLM Categorization Results:")
+                    print(f"  Level 1: {llm_results.get('level_1', {})}")
+                    print(f"  Level 2: {llm_results.get('level_2', {})}")
+                    
+                    # Extract results
+                    level_1_data = llm_results.get('level_1', {})
+                    level_2_data = llm_results.get('level_2', {})
+                    
+                    llm_category = level_1_data.get('category')
+                    llm_confidence = level_1_data.get('confidence', 0.0)
+                    llm_subcategory = level_2_data.get('category')
+                    
+                    print(f"\nExtracted LLM Results:")
+                    print(f"  Category (L1): {llm_category}")
+                    print(f"  Confidence: {llm_confidence}")
+                    print(f"  Subcategory (L2): {llm_subcategory}")
+                    
+                    # Update result
+                    result['category'] = llm_category
+                    result['confidence'] = llm_confidence
+                    result['subcategory'] = llm_subcategory
+                    result['stamp_detected'] = None  # Stamps detection can be added later
+                    
+                    # Prepare all category confidence data
+                    all_confidence_data = {
+                        'level_1_all_results': level_1_data.get('all_results', []),
+                        'level_2_all_results': level_2_data.get('all_results', [])
+                    }
+                    
+                    # Update document_category with LLM results
+                    print("\nUpdating document_category with LLM results...")
+                    doc_category = DocumentCategory()
+                    update_data = {
+                        "category_uuid": None,  # Will be populated later with actual category UUID lookup
+                        "category_confidence": llm_confidence,
+                        "all_category_confidence": json.dumps(all_confidence_data, indent=4, default=str)
+                    }
+                    doc_category.update(st.session_state, '/ai-analyze', result['document_category_uuid'], update_data)
+                    print("Success: document_category updated with LLM results")
                 
             else:
                 print("ERROR: Could not retrieve OCR text from database")
@@ -463,6 +561,10 @@ def render_document_processing():
             st.rerun()
 
 
+# ============================================================================
+# Batch Metrics Display
+# ============================================================================
+
 def render_batch_metrics():
     """Render the batch metrics in a table-like structure."""
     batch_uuid = st.session_state.get('batch_uuid', 'N/A')
@@ -476,14 +578,14 @@ def render_batch_metrics():
 
     # ---------- Header ----------
     batch_hdr = st.columns(batch_header_row_spacing)
-    batch_hdr[0].markdown("## Batch UUID")
-    batch_hdr[1].markdown("## File Count")
-    batch_hdr[2].markdown("## Start")
-    batch_hdr[3].markdown("## Status")
-    batch_hdr[4].markdown("## Process Time")  
+    batch_hdr[0].markdown("### Batch UUID")
+    batch_hdr[1].markdown("### File Count")
+    batch_hdr[2].markdown("### Start")
+    batch_hdr[3].markdown("### Status")
+    batch_hdr[4].markdown("### Process Time")  
 
     # --- Custom text size (adjust '1.1rem' as needed) ---
-    text_size = "1.2rem"  # Options: 0.9rem, 1rem, 1.1rem, 1.2rem, etc.
+    text_size = "1.1rem"
 
     batch_hdr[0].markdown(f"<span style='font-size:{text_size}'>{batch_uuid}</span>", unsafe_allow_html=True)
     batch_hdr[1].markdown(f"<span style='font-size:{text_size}'>{num_files}</span>", unsafe_allow_html=True)
@@ -492,22 +594,30 @@ def render_batch_metrics():
     batch_hdr[4].markdown(f"<span style='font-size:{text_size}'>{process_time}</span>", unsafe_allow_html=True)     
 
 
+# ============================================================================
+# Action Button Row (Post-Processing)
+# ============================================================================
+
 def render_button_row():
     """Render the button row, only if processing complete."""
     if st.session_state.get('processing_complete', False):
         btn_col1, btn_col2, btn_col3 = st.columns(3)
         with btn_col1:
-            if st.button("Save Results", type="primary", width="stretch"):
+            if st.button("Save Results", type="primary", use_container_width=True):
                 save_results_to_database()
                 st.success("Results saved!")
         with btn_col2:
-            if st.button("Export CSV", width="stretch"):
+            if st.button("Export CSV", use_container_width=True):
                 export_results_csv()
         with btn_col3:
-            if st.button("Process More", width="stretch"):
+            if st.button("Process More", use_container_width=True):
                 clear_analysis_session()
                 st.rerun()
 
+
+# ============================================================================
+# Main Analysis Content Router
+# ============================================================================
 
 def render_analysis_content():
     """Render the main content: model prep, processing, or results."""
@@ -531,6 +641,10 @@ def render_analysis_content():
     render_categorization_results()
 
 
+# ============================================================================
+# Processing Status Helper
+# ============================================================================
+
 def get_processing_status():
     """Get current processing status string."""
     if not st.session_state.get('models_prepared', False):
@@ -540,6 +654,10 @@ def get_processing_status():
     else:
         return "Complete"
 
+
+# ============================================================================
+# Model Preparation Step
+# ============================================================================
 
 def render_model_preparation():
     """Render condensed model preparation step."""
@@ -572,6 +690,10 @@ def render_model_preparation():
                 st.rerun()
 
 
+# ============================================================================
+# Results Table with Expanders
+# ============================================================================
+
 def render_categorization_results():
     """Table with an expander that replaces the old modal."""
     results = st.session_state.get('categorization_results', [])
@@ -579,15 +701,17 @@ def render_categorization_results():
         st.warning("No results available")
         return
 
-    row_spacing = [3, 3, 2, 2, 1]          # 5 columns now (no View/Edit button)
+    # Updated column spacing: File, Category, Subcategory, Confidence, Stamp, Confirm
+    row_spacing = [3, 2.5, 2.5, 2, 2, 1]
 
     # ---------- Header ----------
     hdr = st.columns(row_spacing)
-    hdr[0].markdown("## File")
-    hdr[1].markdown("## Category")
-    hdr[2].markdown("## Confidence")
-    hdr[3].markdown("## Stamp")
-    hdr[4].markdown("")                 # Confirm button column
+    hdr[0].markdown("### File")
+    hdr[1].markdown("### Category")
+    hdr[2].markdown("### Subcategory")
+    hdr[3].markdown("### Confidence")
+    hdr[4].markdown("### Stamp")
+    hdr[5].markdown("")  # Confirm button
 
     # ---------- Each row ----------
     for i, res in enumerate(results):
@@ -595,41 +719,46 @@ def render_categorization_results():
         with row_container:
             cols = st.columns(row_spacing, vertical_alignment="center")
 
-            # --- Custom text size (adjust '1.1rem' as needed) ---
-            text_size = "1.2rem"  # Options: 0.9rem, 1rem, 1.1rem, 1.2rem, etc.
+            text_size = "1.1rem"
+            font_weight = 700
 
-            # File name
+            # --- File Name ---
             filename = res.get('filename', 'N/A')
-            cols[0].markdown(f"<span style='font-size:{text_size}'>{filename}</span>", unsafe_allow_html=True)
+            cols[0].markdown(f"<span style='font-size:{text_size}; font-weight:600'>{filename}</span>", unsafe_allow_html=True)
 
-            # Category
-            cat = f"{res.get('category','')} / {res.get('subcategory','')}".strip()
-            cols[1].markdown(f"<span style='font-size:{text_size}'>{cat}</span>", unsafe_allow_html=True)
+            # --- Category ---
+            category = res.get('category', '—')
+            cols[1].markdown(f"<span style='font-size:{text_size}'>{category}</span>", unsafe_allow_html=True)
 
-            # Confidence badge (badge size is fixed, but label is readable)
+            # --- Subcategory ---
+            subcategory = res.get('subcategory', '—')
+            cols[2].markdown(f"<span style='font-size:{text_size}'>{subcategory}</span>", unsafe_allow_html=True)
+
+            # --- Confidence: Colored Text Only ---
             conf = res.get('confidence')
-            if isinstance(conf, (int, float)):
-                pct = f"{conf*100:.1f}%"
+            if isinstance(conf, (int, float)) and conf >= 0:
+                pct = f"{conf * 100:.1f}%"
                 if conf >= 0.75:
-                    c, ico = "green", "✓"
-                elif conf >= 0.65:
-                    c, ico = "orange", "⚠"
+                    conf_text = f"<span style='font-size:{text_size}; color:green; font-weight:{font_weight}'>High - {pct}</span>"
+                elif conf >= 0.50:
+                    conf_text = f"<span style='font-size:{text_size}; color:orange; font-weight:{font_weight}'>Med - {pct}</span>"
                 else:
-                    c, ico = "red", "✗"
-                cols[2].markdown(custom_badge(pct, c, ico), unsafe_allow_html=True)
+                    conf_text = f"<span style='font-size:{text_size}; color:red; font-weight:{font_weight}'>Low - {pct}</span>"
             else:
-                cols[2].markdown(custom_badge("N/A", "gray"), unsafe_allow_html=True)
+                conf_text = "<span style='color:gray'>N/A</span>"
+            cols[3].markdown(conf_text, unsafe_allow_html=True)
 
-            # Stamp badge
-            stamp = res.get('stamp_detected', False)
-            label = "Detected" if stamp else "Not Detected"
-            scol = "green" if stamp else "red"
-            sico = "✓" if stamp else "✗"
-            cols[3].markdown(custom_badge(label, scol, sico), unsafe_allow_html=True)
+            # --- Stamp: Purple if name exists, else gray "No Stamp Detected" ---
+            stamp_name = res.get('stamp_detected')
+            if stamp_name and isinstance(stamp_name, str) and stamp_name.strip():
+                stamp_text = f"<span style='color:purple; font-weight:{font_weight}'>{stamp_name}</span>"
+            else:
+                stamp_text = "<span style='color:#888; font-style:italic'>No Stamp Detected</span>"
+            cols[4].markdown(stamp_text, unsafe_allow_html=True)
 
-            # Confirm button
-            if cols[4].button("Confirm", key=f"confirm_{i}"):
-                pass
+            # --- Confirm Button ---
+            if cols[5].button("Confirm", key=f"confirm_{i}", use_container_width=True):
+                pass  # Add logic later
 
         # --- Expander ---
         with st.expander(f"Details – {res.get('filename','Item '+str(i))}", expanded=False):
@@ -637,6 +766,10 @@ def render_categorization_results():
 
         st.markdown("---")
 
+
+# ============================================================================
+# Expander Content (Detailed View) – AgGrid Table (Read-only, Wrapped Text)
+# ============================================================================
 
 def _render_expander_content(result: dict, row_idx: int):
     """All the UI that used to be in the modal – now inside an expander."""
@@ -674,44 +807,159 @@ def _render_expander_content(result: dict, row_idx: int):
             key=f"exp_subcategory_{row_idx}"
         )
 
-    # ---------- Row 2 – Confidence + All LLM confidences ----------
-    r2_col1, r2_col2, r2_col3 = st.columns([2, 1, 7])
+    # ---------- Row 2 – Confidence + All LLM Confidences (AgGrid) ----------
+    r2_col1, r2_col2, r2_col3 = st.columns([2, 1, 9])
 
     with r2_col1:
-        st.markdown("**Confidence Levels:**")
+        #st.markdown("**Confidence Levels:**")
         confidence = result.get('confidence', 0.0)
-        if confidence >= 0.8:
-            conf_color = "Green"
-        elif confidence >= 0.6:
-            conf_color = "Yellow"
-        else:
-            conf_color = "Red"
-        st.metric("Highest Confidence", f"{conf_color} {confidence:.1%}")
 
-    with r2_col2:
-        st.markdown(
-            """
-            <div style="
-                height: 100%;
-                border-left: 2px solid #cccccc;
-                margin-left: 10px;
-                margin-right: 10px;
-            "></div>
-            """,
-            unsafe_allow_html=True
+        # --- Determine color and label ---
+        if confidence >= 0.75:
+            color = "green"
+            label = "High"
+            icon = "High Confidence"
+        elif confidence >= 0.5:
+            color = "orange"
+            label = "Medium"
+            icon = "Medium Confidence"
+        else:
+            color = "red"
+            label = "Low"
+            icon = "Low Confidence"
+
+        # --- Custom metric with color, delta arrow, and badge ---
+        st.metric(
+            label="Confidence",
+            value=f"{confidence:.1%}",
+            delta=f"{label} Confidence",
+            delta_color="normal"
         )
 
+        # --- Visual Confidence Bar (progress-style) ---
+        st.markdown(f"""
+        <div style="
+            margin-top: 8px;
+            font-size: 0.85rem;
+            color: #555;
+        ">
+            <div style="
+                height: 6px;
+                width: 100%;
+                background-color: #eee;
+                border-radius: 3px;
+                overflow: hidden;
+            ">
+                <div style="
+                    width: {confidence * 100}%;
+                    height: 100%;
+                    background-color: {color};
+                    transition: width 0.4s ease;
+                "></div>
+            </div>
+            <div style="margin-top: 4px; text-align: right; font-weight: 600; color: {color};">
+                {icon}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # with r2_col2:
+    #     st.markdown(
+    #         """
+    #         <div style="
+    #             height: 100%;
+    #             border-left: 2px solid #cccccc;
+    #             margin-left: 10px;
+    #             margin-right: 10px;
+    #         "></div>
+    #         """,
+    #         unsafe_allow_html=True
+    #     )
+
     with r2_col3:
-        st.markdown("**All LLM Confidences:**")
-        llm_confidences = result.get('all_llm_confidences', {})
-        items = list(llm_confidences.items())
-        if not items:
-            st.caption("No models evaluated")
+        st.markdown("**All LLM Results (Successful Models Only):**")
+
+        # --------------------------------------------------------------
+        # 1. Pull JSON from DB
+        # --------------------------------------------------------------
+        all_confidence_json = None
+        if result.get('document_category_uuid'):
+            conn = create_connection()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT all_category_confidence FROM document_category "
+                "WHERE document_category_uuid = ? AND organization_uuid = ?",
+                (result['document_category_uuid'], st.session_state.get('org_uuid'))
+            )
+            row = cur.fetchone()
+            conn.close()
+            if row and row[0]:
+                all_confidence_json = row[0]
+
+        if not all_confidence_json:
+            st.caption("No detailed LLM results available.")
         else:
-            cols = st.columns(min(len(items), 3))
-            for j, (model, conf) in enumerate(items):
-                with cols[j % len(cols)]:
-                    st.metric(label=model.split(':')[0], value=f"{conf:.1%}")
+            try:
+                data = json.loads(all_confidence_json)
+            except json.JSONDecodeError:
+                st.caption("Invalid LLM results format.")
+                data = {}
+
+            # --------------------------------------------------------------
+            # 2. Build rows with Level, filter successful, sort
+            # --------------------------------------------------------------
+            rows = []
+
+            # Helper: map key → display name
+            level_map = {
+                "level_1_all_results": "Level 1",
+                "level_2_all_results": "Level 2"
+            }
+
+            for key, display_level in level_map.items():
+                results_list = data.get(key, [])
+                for r in results_list:
+                    if r.get('success') is True and r.get('confidence') is not None:
+                        rows.append({
+                            "Level": display_level,
+                            "Model": r.get('model_used', 'Unknown').split(':')[0],
+                            "Category": r.get('category') or "—",
+                            "Confidence": r.get('confidence', 0),  # keep as float for sorting
+                            "Conf %": f"{r.get('confidence', 0) * 100:.1f}%",  # display
+                            "Reasoning": (r.get('reasoning') or "").strip() or "No reasoning provided"
+                        })
+
+            if not rows:
+                st.caption("No successful model evaluations.")
+            else:
+                df = pd.DataFrame(rows)
+
+            # --------------------------------------------------------------
+            # 3. Sort: Level (asc) → Confidence (desc)
+            # --------------------------------------------------------------
+            df = df.sort_values(
+                by=["Level", "Confidence"],
+                ascending=[True, False]
+            ).reset_index(drop=True)
+
+            # Drop the float column used for sorting
+            df_display = df.drop(columns=["Confidence"]).copy()
+
+            # --------------------------------------------------------------
+            # 5. (Optional) Debug – keep this *outside* the UI
+            # --------------------------------------------------------------
+            print(df_display)   # <-- comment/uncomment for debugging only
+
+            st.dataframe(df_display,
+                use_container_width=False,  # Important: allows fixed pixel widths
+                column_config={
+                    "Level": st.column_config.Column(width="small"), # small, medium, large
+                    "Model": st.column_config.Column(width="medium"),   
+                    "Category": st.column_config.Column(width="medium"), 
+                    "Conf %": st.column_config.Column(width="small"),
+                })
+            
+
 
     # ---------- Row 3 – OCR text + PDF preview ----------
     r3_col1, r3_col2 = st.columns([4, 6])
@@ -720,9 +968,8 @@ def _render_expander_content(result: dict, row_idx: int):
     # ---- OCR Text -------------------------------------------------
     with r3_col1:
         st.markdown("**Extracted Text (OCR)**")
-        ocr_text = result.get('ocr_text',
-            "Placeholder OCR text … (real OCR would be here)")
-        new_ocr_text = st.text_area(
+        ocr_text = result.get('ocr_text', "Placeholder OCR text … (real OCR would be here)")
+        st.text_area(
             "OCR Text",
             value=ocr_text,
             height=row_height_default,
@@ -730,21 +977,17 @@ def _render_expander_content(result: dict, row_idx: int):
             label_visibility="collapsed"
         )
 
-    # ---- PDF Preview (with streamlit-pdf-viewer) -----------------------------
+    # ---- PDF Preview -------------------------------------------------
     with r3_col2:
         st.markdown("**Document Preview**")
-
-        # 1. Try to get the PDF bytes from the *uploaded* file list (fastest)
         pdf_bytes = None
         if 'uploaded_files' in st.session_state:
-            # match by filename (case-insensitive)
             name = result.get('filename')
             for f in st.session_state['uploaded_files']:
                 if f.name.lower() == name.lower():
                     pdf_bytes = f.getvalue()
                     break
 
-        # 2. Fallback: query the DB column `pdf` (you already store it)
         if pdf_bytes is None and result.get('document_uuid'):
             conn = create_connection()
             cur = conn.cursor()
@@ -757,19 +1000,15 @@ def _render_expander_content(result: dict, row_idx: int):
             if row:
                 pdf_bytes = row[0]
 
-        # 3. Render the PDF with streamlit-pdf-viewer
         if pdf_bytes:
-            from streamlit_pdf_viewer import pdf_viewer  # Import inside function to avoid global issues
-            
-            # Wrap in st.container() for better sizing in columns/expanders
-            pdf_container = st.container(height=row_height_default, width='stretch')
+            from streamlit_pdf_viewer import pdf_viewer
+            pdf_container = st.container(height=row_height_default)
             with pdf_container:
                 pdf_viewer(
                     input=pdf_bytes,
                     width="100%",
                     height=row_height_default - 50,
-                    zoom_level="auto", 
-                    # render_mode="canvas",              # Required for fit-height to work
+                    zoom_level="auto",
                     show_page_separator=True,
                     viewer_align="center"
                 )
@@ -786,25 +1025,25 @@ def _render_expander_content(result: dict, row_idx: int):
 
     # ---------- Action buttons ----------
     col1, col2, col3 = st.columns(3)
-
     with col1:
         if st.button("Save Changes", type="primary", key=f"exp_save_{row_idx}", use_container_width=True):
             result['category'] = new_category
             result['subcategory'] = new_subcategory if new_subcategory != "None" else None
-            result['ocr_text'] = new_ocr_text
             st.success("Changes saved!")
             st.rerun()
-
     with col2:
         if st.button("Discard Changes", key=f"exp_discard_{row_idx}", use_container_width=True):
             st.rerun()
-
     with col3:
         if st.button("Delete Document", key=f"exp_delete_{row_idx}", use_container_width=True):
             st.session_state['categorization_results'].pop(row_idx)
             st.success("Document deleted!")
             st.rerun()
 
+
+# ============================================================================
+# Result Persistence
+# ============================================================================
 
 def save_results_to_database():
     """Save categorization results to database (placeholder)."""
@@ -832,6 +1071,10 @@ def export_results_csv():
         mime="text/csv"
     )
 
+
+# ============================================================================
+# Session Cleanup
+# ============================================================================
 
 def clear_analysis_session():
     """Clear all analysis session state."""

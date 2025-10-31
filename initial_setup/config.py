@@ -1003,7 +1003,7 @@ INSERTS = [
         "columns": [
             "llm_model_uuid", "system", "name", "description", "min_ram_gb",
             "default_timeout", "gpu_required", "gpu_optional", "min_vram_gb",
-            "is_text_only", "is_active", "created_datetime", "updated_datetime"
+            "is_vision_capable", "is_active", "created_datetime", "updated_datetime"
         ],
         "uuid_keys": {"llm_model_uuid": ["system", "name"]},
         "data": [
@@ -1112,7 +1112,7 @@ INSERTS = [
                 "description": "Documents related to wage or bank garnishments",
                 "use_keywords": 1,
                 "keywords": "['garnishment', 'garnish', 'wage', 'bank account', 'earnings']",
-                "use_llm": 0,
+                "use_llm": 1,
                 "high_min_threshold": 0.75,
                 "medium_min_threshold": 0.50
             },
@@ -1125,7 +1125,7 @@ INSERTS = [
                 "description": "Court transcripts of judgments",
                 "use_keywords": 1,
                 "keywords": "['transcript', 'judgment', 'TOJ', 'court', 'clerk']",
-                "use_llm": 0,
+                "use_llm": 1,
                 "high_min_threshold": 0.75,
                 "medium_min_threshold": 0.50
             },
@@ -1138,7 +1138,7 @@ INSERTS = [
                 "description": "Service of process documents",
                 "use_keywords": 1,
                 "keywords": "['service', 'served', 'process server', 'certified mail', 'summons']",
-                "use_llm": 0,
+                "use_llm": 1,
                 "high_min_threshold": 0.75,
                 "medium_min_threshold": 0.50
             },
