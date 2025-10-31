@@ -10,6 +10,7 @@ from app.components.system_status import prepare_ollama_models_background, check
 from database.db_models import create_connection, Batch, Document, DocumentCategory
 from utils.utils_system_specs import get_system_specs
 from utils.ocr_processing import process_document_with_available_ocr
+from utils.utils import custom_badge
 
 
 # --------------------------------------------------------------
@@ -42,6 +43,7 @@ def render_ai_analysis_page():
         print("Rendering analysis workflow elements...")
         st.markdown("---")
         render_batch_metrics()
+        st.markdown("---")
         st.markdown("---")
         render_analysis_content()
         # st.markdown("---")
@@ -131,7 +133,7 @@ def render_upload_section(disabled: bool = False):
                             clear_analysis_session()
                             st.rerun()
 
-            # No buttons when disabled
+        # No buttons when disabled
         else:
             st.markdown("#### Ready to Process")
             st.info("Upload files to begin processing")
@@ -468,11 +470,11 @@ def render_batch_metrics():
 
     # ---------- Header ----------
     batch_hdr = st.columns(batch_header_row_spacing)
-    batch_hdr[0].markdown("### Batch UUID")
-    batch_hdr[1].markdown("### File Count")
-    batch_hdr[2].markdown("### Start")
-    batch_hdr[3].markdown("### Status")
-    batch_hdr[4].markdown("### Process Time")  
+    batch_hdr[0].markdown("## Batch UUID")
+    batch_hdr[1].markdown("## File Count")
+    batch_hdr[2].markdown("## Start")
+    batch_hdr[3].markdown("## Status")
+    batch_hdr[4].markdown("## Process Time")  
 
     # --- Custom text size (adjust '1.1rem' as needed) ---
     text_size = "1.2rem"  # Options: 0.9rem, 1rem, 1.1rem, 1.2rem, etc.
@@ -575,10 +577,10 @@ def render_categorization_results():
 
     # ---------- Header ----------
     hdr = st.columns(row_spacing)
-    hdr[0].markdown("### File")
-    hdr[1].markdown("### Category")
-    hdr[2].markdown("### Confidence")
-    hdr[3].markdown("### Stamp")
+    hdr[0].markdown("## File")
+    hdr[1].markdown("## Category")
+    hdr[2].markdown("## Confidence")
+    hdr[3].markdown("## Stamp")
     hdr[4].markdown("")                 # Confirm button column
 
     # ---------- Each row ----------
@@ -588,14 +590,14 @@ def render_categorization_results():
             cols = st.columns(row_spacing, vertical_alignment="center")
 
             # --- Custom text size (adjust '1.1rem' as needed) ---
-            text_size = "1.0rem"  # Options: 0.9rem, 1rem, 1.1rem, 1.2rem, etc.
+            text_size = "1.2rem"  # Options: 0.9rem, 1rem, 1.1rem, 1.2rem, etc.
 
             # File name
             filename = res.get('filename', 'N/A')
             cols[0].markdown(f"<span style='font-size:{text_size}'>{filename}</span>", unsafe_allow_html=True)
 
             # Category
-            cat = f"{res.get('category','')} {res.get('subcategory','')}".strip()
+            cat = f"{res.get('category','')} / {res.get('subcategory','')}".strip()
             cols[1].markdown(f"<span style='font-size:{text_size}'>{cat}</span>", unsafe_allow_html=True)
 
             # Confidence badge (badge size is fixed, but label is readable)
@@ -603,21 +605,21 @@ def render_categorization_results():
             if isinstance(conf, (int, float)):
                 pct = f"{conf*100:.1f}%"
                 if conf >= 0.75:
-                    c, ico = "green", ":material/check:"
+                    c, ico = "green", "✓"
                 elif conf >= 0.65:
-                    c, ico = "orange", ":material/warning:"
+                    c, ico = "orange", "⚠"
                 else:
-                    c, ico = "red", ":material/error:"
-                cols[2].badge(pct, icon=ico, color=c)
+                    c, ico = "red", "✗"
+                cols[2].markdown(custom_badge(pct, c, ico), unsafe_allow_html=True)
             else:
-                cols[2].badge("N/A", color="gray")
+                cols[2].markdown(custom_badge("N/A", "gray"), unsafe_allow_html=True)
 
             # Stamp badge
             stamp = res.get('stamp_detected', False)
             label = "Detected" if stamp else "Not Detected"
             scol = "green" if stamp else "red"
-            sico = ":material/check:" if stamp else ":material/close:"
-            cols[3].badge(label, icon=sico, color=scol)
+            sico = "✓" if stamp else "✗"
+            cols[3].markdown(custom_badge(label, scol, sico), unsafe_allow_html=True)
 
             # Confirm button
             if cols[4].button("Confirm", key=f"confirm_{i}"):

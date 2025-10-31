@@ -1001,7 +1001,7 @@ INSERTS = [
         "uuid_keys": {"llm_model_uuid": ["system", "name"]},
         "data": [
             {
-                "name": "granite3.2-vision",
+                "name": "granite3.2-vision:latest",
                 "system": "Ollama",
                 "description": "Best for scanned legal PDFs with tables/forms. Extracts text and categorizes (e.g., invoice, notice) with high accuracy. Ideal for low-resource machines (4-8GB VRAM).",
                 "min_ram_gb": 8,
@@ -1011,7 +1011,7 @@ INSERTS = [
                 "min_vram_gb": 4
             },
             {
-                "name": "llava:7b",
+                "name": "llava:7b:latest",
                 "system": "Ollama",
                 "description": "Excels at text recognition from scans, including handwritten mail. Classifies complex documents (e.g., disputes, proofs) with reasoning. Needs 8-16GB VRAM. 7 billion parameters",
                 "min_ram_gb": 0,
@@ -1021,7 +1021,7 @@ INSERTS = [
                 "min_vram_gb": 8
             },
             {
-                "name": "llava:13b",
+                "name": "llava:13b:latest",
                 "system": "Ollama",
                 "description": "Excels at text recognition from scans, including handwritten mail. Classifies complex documents (e.g., disputes, proofs) with reasoning. Needs 8-16GB VRAM. 13 billion parameters",
                 "min_ram_gb": 0,
@@ -1031,7 +1031,7 @@ INSERTS = [
                 "min_vram_gb": 16
             },
             {
-                "name": "qwen2-vl:7b",
+                "name": "qwen2-vl:7b:latest",
                 "system": "Ollama",
                 "description": "Strong for multi-page forms and multilingual mail. Fast categorization of legal documents (e.g., demands, filings). Requires 8-12GB VRAM.",
                 "min_ram_gb": 0,
@@ -1041,7 +1041,7 @@ INSERTS = [
                 "min_vram_gb": 8
             },
             {
-                "name": "mistral",
+                "name": "mistral:latest",
                 "system": "Ollama",
                 "description": "Efficient for text-based classification after OCR extraction. Ideal for clean, structured legal text (e.g., summons, notices). Runs on 4-8GB RAM.",
                 "min_ram_gb": 4,

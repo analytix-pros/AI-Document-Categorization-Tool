@@ -110,7 +110,11 @@ def get_logger_from_session(session_state, console_output=False):
 
 
 def log_landing_page(session_state, page_name): 
-    get_logger_from_session(session_state).info(page_name, json.dumps(get_system_specs(), indent=2, default=str))
+    get_logger_from_session(session_state).info(page_name, json.dumps(get_system_specs(), indent=4, default=str))
+
+
+def log_system_status(session_state, system_status_payload, page_name='/system_status'): 
+    get_logger_from_session(session_state).info(page_name, json.dumps(system_status_payload, indent=4, default=str))
 
 
 def log_page_view(session_state, page_name):

@@ -1,23 +1,21 @@
-"""System status sidebar component - with OCR, Hardware, and Ollama Airplane Mode."""
+"""System status sidebar component - updated to work with new system_checker."""
 import streamlit as st
 import sys
-import requests
-import json
 import pandas as pd
-from urllib.parse import urljoin
 
-# === Your existing imports ===
+from utils.utils_logging import log_system_status
 from initial_setup.system_checker import (
     check_all_dependencies,
     download_all_required_models,
     check_required_ollama_models,
-    check_ocr_dependencies
+    check_ocr_dependencies,
+    enable_ollama_airplane_mode,
+    start_ollama_service
 )
 from initial_setup.llm_installer import (
     get_ollama_install_instructions,
     install_ollama_model,
-    open_ollama_download_page,
-    check_ollama_service_running
+    open_ollama_download_page
 )
 from initial_setup.ocr_installer import (
     get_ocr_install_instructions,
@@ -26,249 +24,200 @@ from initial_setup.ocr_installer import (
 )
 
 
-# === NEW: Ollama Airplane Mode Detection ===
-def check_ollama_airplane_mode():
-    """Detect if Ollama can pull models (i.e. not in airplane/offline mode)."""
-    OLLAMA_API = "http://localhost:11434"
-
-    try:
-        resp = requests.get(urljoin(OLLAMA_API, "/api/tags"), timeout=3)
-        if resp.status_code != 200:
-            return {'in_airplane_mode': False, 'reason': 'Ollama service not responding'}
-    except requests.RequestException:
-        return {'in_airplane_mode': False, 'reason': 'Ollama service not accessible'}
-
-    try:
-        payload = {"name": "library/phi3:mini"}
-        pull_resp = requests.post(
-            urljoin(OLLAMA_API, "/api/pull"),
-            json=payload,
-            timeout=8,
-            stream=True
-        )
-        for line in pull_resp.iter_lines():
-            if line:
-                data = json.loads(line)
-                if data.get("status") == "pulling manifest":
-                    return {'in_airplane_mode': False, 'reason': 'Can pull models'}
-                if "error" in data and any(kw in data["error"].lower() for kw in ["network", "connection", "timeout"]):
-                    return {'in_airplane_mode': True, 'reason': 'Network error during pull'}
-                break
-        return {'in_airplane_mode': True, 'reason': 'Pull failed silently'}
-    except requests.Timeout:
-        return {'in_airplane_mode': True, 'reason': 'Pull timeout'}
-    except requests.ConnectionError:
-        return {'in_airplane_mode': True, 'reason': 'Connection refused'}
-    except Exception as e:
-        if "network" in str(e).lower():
-            return {'in_airplane_mode': True, 'reason': f'Network issue: {e}'}
-        return {'in_airplane_mode': False, 'reason': 'Unknown'}
-
-    return {'in_airplane_mode': True, 'reason': 'No internet access'}
-
-
-# === ENHANCED: check_all_dependencies with airplane mode & OCR ===
-def check_all_dependencies():
-    """Wrap original + inject airplane mode and OCR status."""
-    try:
-        from initial_setup.system_checker import check_all_dependencies as orig
-        status = orig()
-    except Exception:
-        status = {
-            'ollama': {'installed': False},
-            'internet': {'connected': False},
-            'system_specs': {}
-        }
-
-    # Add airplane mode
-    if status['ollama'].get('installed'):
-        service_status = status['ollama'].get('service_status', {})
-        if service_status.get('accessible'):
-            status['ollama']['airplane_mode'] = check_ollama_airplane_mode()
-        else:
-            status['ollama']['airplane_mode'] = {'in_airplane_mode': False, 'reason': 'Service not running'}
-    else:
-        status['ollama']['airplane_mode'] = {'in_airplane_mode': False, 'reason': 'Ollama not installed'}
-
-    # Add OCR status
-    status['ocr_status'] = check_ocr_dependencies()
-
-    return status
-
-
-# === UPDATED: System Status Sidebar with Expander (Minimized by Default) ===
 def render_system_status_sidebar():
     """Render full system status inside a collapsible expander, minimized by default."""
-    if 'system_status' not in st.session_state:
-        st.session_state['system_status'] = check_all_dependencies()
-    
-    status = st.session_state['system_status']
-    
     with st.sidebar:
-        st.markdown("---")
-
-        # === MAIN EXPANDER: All status inside, collapsed by default ===
         with st.expander("System Status", expanded=False):
-            st.markdown("## LLM Status")
-            
-            # === Ollama Status ===
-            ollama_status = status['ollama']
-            
-            st.caption(f"{ollama_status.get('version', 'Unknown').upper()}")
+            if 'system_status' not in st.session_state:
+                with st.spinner("Checking system dependencies..."):
+                    st.session_state['system_status'] = check_all_dependencies()
 
-            if ollama_status['installed']:
-                st.success("Ollama Installed")
+            status = st.session_state['system_status']
+
+            # Overall System Ready Status
+            st.markdown("---")
+            if status.get('all_ready'):
+                st.success("✅ System Ready")
             else:
-                st.error("Ollama Not Installed")
-                if st.button("Install Guide", key="show_ollama_install", width='stretch'):
-                    st.session_state['show_ollama_install_guide'] = True
-            
-            # Service + Airplane Mode
-            service_status = ollama_status.get('service_status', {})
-            if service_status.get('accessible'):
-                st.success("Service Running")
+                st.error("❌ System Not Ready")
                 
-                airplane = ollama_status.get('airplane_mode', {})
-                if airplane.get('in_airplane_mode'):
-                    st.caption("Internet Disconnected")
+                # Show what's missing
+                issues = []
+                if not status.get('ollama', {}).get('installed'):
+                    issues.append("Ollama not installed")
+                elif not status.get('ollama', {}).get('running'):
+                    issues.append("Ollama not running")
                 else:
-                    st.warning("Internet Online")
-            else:
-                st.error("Service Not Running")
-                st.caption("Please start Ollama")
-
-            st.markdown("---")
-
-            # === OCR Status ===
-            st.markdown("## OCR Models")
-            render_ocr_status(status['ocr_status'])
-
-            st.markdown("---")
-
-            # === Hardware Info ===
-            st.markdown("## Hardware")
-            render_hardware_info(status.get('system_specs', {}))
-
-
-        # Refresh button at the top
-        if st.button("Refresh All", width='stretch'):
-            st.session_state['system_status'] = check_all_dependencies()
-            st.rerun()
-
-        # === INSTALL GUIDES (outside expander, but only show when triggered) ===
-        if st.session_state.get('show_ollama_install_guide', False):
-            render_ollama_install_guide()
-
-
-# === OCR Status Renderer (from your input) ===
-def render_ocr_status(ocr_status):
-    """Render OCR installation status and controls."""
-    if not ocr_status.get('ocr_models'):
-        st.info("No OCR models configured")
-        return
-
-    total_models = len(ocr_status['ocr_models'])
-    installed_count = sum(1 for s in ocr_status['ocr_models'].values() if s['installed'])
-
-    if ocr_status['all_installed']:
-        st.success(f"All models ready ({installed_count}/{total_models})")
-    else:
-        st.warning(f"⚠️ Models: {installed_count}/{total_models} installed")
-
-    ## st.markdown("---")
-
-    for ocr_name, status in ocr_status['ocr_models'].items():
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            if status['installed']:
-                # st.write(f"{ocr_name}")
-                if status.get('version') and status['version'] != 'Unknown':
-                    st.caption(f"{ocr_name} - v{status['version']}")
-            else:
-                st.write(f"{ocr_name}")
-                if status.get('error'):
-                    st.caption(f"{ocr_name} - {status['error']}")
-
-        with col2:
-            if not status['installed']:
-                if status.get('error') and 'requires Python 3.10+' in status.get('error', ''):
-                    st.caption("")
-                else:
-                    if st.button("Install", key=f"install_ocr_{ocr_name}", help=f"Install {ocr_name}"):
-                        st.session_state[f'show_ocr_install_{ocr_name}'] = True
-                        st.rerun()
-
-        # Installation Guide
-        if st.session_state.get(f'show_ocr_install_{ocr_name}', False):
-            if status.get('error') and 'requires Python 3.10+' in status.get('error', ''):
-                st.error(f"{ocr_name} requires Python 3.10+")
-                st.info(f"Current: Python {sys.version_info.major}.{sys.version_info.minor}")
-                st.warning("Please upgrade Python")
-                if st.button("Close", key=f"close_{ocr_name}_inst", width='stretch'):
-                    st.session_state[f'show_ocr_install_{ocr_name}'] = False
+                    models = status.get('ollama', {}).get('models', {})
+                    if not models.get('all_working'):
+                        missing = models.get('missing_models', [])
+                        broken = models.get('broken_models', [])
+                        if missing:
+                            issues.append(f"{len(missing)} model(s) missing")
+                        if broken:
+                            issues.append(f"{len(broken)} model(s) broken")
+                
+                if not status.get('ocr', {}).get('at_least_one_available'):
+                    issues.append("No OCR models")
+                
+                if not status.get('poppler', {}).get('installed'):
+                    issues.append("Poppler not installed")
+                
+                if issues:
+                    with st.expander("Issues"):
+                        for issue in issues:
+                            st.markdown(f"- {issue}")
+                        
+            if st.button("🔄 Refresh Status", key="refresh_system_status", width='stretch'):
+                with st.spinner("Refreshing system status..."):
+                    st.session_state['system_status'] = check_all_dependencies()
                     st.rerun()
-                continue
 
-            instructions = get_ocr_install_instructions(ocr_name)
-            st.markdown(f"**Install {ocr_name}:**")
-            st.markdown(f"*{instructions['method']}*")
-            for inst in instructions['instructions']:
-                st.markdown(f"- {inst}")
-            if 'cli_command' in instructions:
-                st.code(instructions['cli_command'], language='bash')
+            st.markdown("---")
 
-            if ocr_name.lower() in ['easyocr', 'paddleocr']:
-                if st.button(f"Install Now", key=f"do_install_{ocr_name}", width='stretch'):
-                    with st.spinner(f'Installing {ocr_name}...'):
-                        result = install_python_ocr_package(ocr_name.lower())
-                        if result['success'] and result['process'].returncode == 0:
-                            st.success(f"{ocr_name} installed!")
-                            st.session_state[f'show_ocr_install_{ocr_name}'] = False
-                            st.session_state['system_status'] = check_all_dependencies()
-                            st.rerun()
-                        else:
-                            st.error(f"Failed to install {ocr_name}")
-                            if 'process' in result:
-                                _, stderr = result['process'].communicate()
-                                if stderr:
-                                    st.code(stderr)
-            elif ocr_name.lower() == 'tesseract':
-                if 'url' in instructions:
-                    if st.button("Download Page", key=f"open_{ocr_name}_dl", width='stretch'):
-                        open_tesseract_download_page()
+            
+            # OCR Status
+            st.markdown("## OCR Models")
+            ocr_status = status.get('ocr', {})
+            ocr_models = ocr_status.get('ocr_models', {})
+            
+            for model_name, model_info in ocr_models.items():
+                if model_info.get('installed') and model_info.get('running'):
+                    st.caption(f"✅ **{model_name}:** {model_info.get('version', 'Installed')}")
+                else:
+                    st.caption(f"❌ **{model_name}:** {model_info.get('error', 'Not installed')}")
+                    if st.button(f"Install {model_name}", key=f"install_ocr_{model_name}"):
+                        st.session_state[f'show_{model_name}_install_guide'] = True
+            
+            if not ocr_status.get('at_least_one_available', False):
+                st.error("⚠️ No OCR models available. Please install at least one OCR model.")
+            
+            # Ollama Status
+            st.markdown("## Ollama (LLM)")
+            ollama_info = status.get('ollama', {})
+            
+            if not ollama_info.get('installed'):
+                st.error("❌ Ollama not installed")
+                st.caption(ollama_info.get('message', 'Please install Ollama'))
+                if st.button("📥 Install Ollama", key="show_ollama_install"):
+                    st.session_state['show_ollama_install_guide'] = True
+            else:
+                st.caption(f"✅ **Version:** {ollama_info.get('version', 'Unknown')}")
+                
+                if not ollama_info.get('running'):
+                    st.warning("⚠️ Ollama service not running")
+                    if st.button("▶️ Start Ollama", key="start_ollama_service"):
+                        with st.spinner("Starting Ollama service..."):
+                            start_result = start_ollama_service()
+                            if start_result['success']:
+                                st.success("Ollama service started!")
+                                st.session_state['system_status'] = check_all_dependencies()
+                                st.rerun()
+                            else:
+                                st.error(f"Failed to start: {start_result['message']}")
+                else:
+                    st.caption("✅ **Service:** Running")
+                    
+                    # Models Status
+                    models_info = ollama_info.get('models', {})
+                    required_models = models_info.get('required', [])
+                    installed_models = models_info.get('installed', [])
+                    missing_models = models_info.get('missing_models', [])
+                    broken_models = models_info.get('broken_models', [])
+                    all_working = models_info.get('all_working', False)
+                    
+                    if required_models:
+                        working_count = len([m for m in required_models if m not in missing_models and m not in broken_models])
+                        st.caption(f"**Models:** {working_count}/{len(required_models)} working")
+                        
+                        # Show missing models
+                        if missing_models:
+                            st.warning(f"⚠️ Missing {len(missing_models)} model(s)")
+                            with st.expander("Missing Models"):
+                                for model in missing_models:
+                                    st.caption(f"- {model}")
+                        
+                        # Show broken models
+                        if broken_models:
+                            st.error(f"🔴 {len(broken_models)} broken model(s)")
+                            with st.expander("Broken Models"):
+                                verification = models_info.get('verification', {})
+                                for model in broken_models:
+                                    error_msg = verification.get(model, {}).get('error', 'Unknown error')
+                                    st.caption(f"- **{model}**: {error_msg}")
+                        
+                        # Button to pull all models (missing or broken)
+                        if missing_models or broken_models:
+                            if st.button("📥 Pull All Required Models", key="pull_all_models"):
+                                with st.spinner("Pulling models..."):
+                                    download_result = download_all_required_models()
+                                    if download_result['success']:
+                                        st.success("All models pulled successfully!")
+                                        st.session_state['system_status'] = check_all_dependencies()
+                                        st.rerun()
+                                    else:
+                                        failed = download_result.get('models_failed', [])
+                                        st.error(f"Some models failed: {download_result['message']}")
+                                        if failed:
+                                            with st.expander("Failed Models"):
+                                                for fail in failed:
+                                                    st.markdown(f"- **{fail['model']}**: {fail['error']}")
+                    
+                    # # Airplane Mode Status
+                    # airplane_info = ollama_info.get('airplane_mode', {})
+                    # if airplane_info.get('in_airplane_mode'):
+                    #     st.markdown("✅ **Airplane Mode:** ON (Secure)")
+                    # else:
+                    #     st.warning("⚠️ **Airplane Mode:** OFF")
+                    #     st.markdown(airplane_info.get('message', ''))
+                        
+                    #     if airplane_info.get('can_verify'):
+                    #         if st.button("🛡️ Enable Airplane Mode", key="enable_airplane_mode"):
+                    #             with st.spinner("Enabling airplane mode..."):
+                    #                 enable_result = enable_ollama_airplane_mode()
+                    #                 if enable_result['success']:
+                    #                     st.success("Airplane mode enabled!")
+                    #                     st.session_state['system_status'] = check_all_dependencies()
+                    #                     st.rerun()
+                    #                 else:
+                    #                     st.error(f"Failed: {enable_result['message']}")
+                    #     else:
+                    #         st.info("Cannot verify airplane mode - service may not be responding")
+            
+            st.markdown("---")
 
-            if st.button("Close", key=f"close_{ocr_name}_inst", width='stretch'):
-                st.session_state[f'show_ocr_install_{ocr_name}'] = False
-                st.rerun()
+            # OS Info
+            st.markdown("## System Details")
+            os_info = status.get('os', {})
+            st.caption(f"{os_info.get('system', 'Unknown')} - {os_info.get('machine', 'Unknown')}")
+            
+            # System Specs
+            specs = status.get('system_specs', {})
+            if 'memory' in specs:
+                st.markdown("#### RAM")
+                st.caption(f"{specs['memory'].get('total_gb', 0):.1f} GB")
+            if 'gpu_available' in specs:
+                st.markdown("#### GPU Available")
+                gpu_status = "✅ Available" if specs['gpu_available'] else "❌ Not Available"
+                st.caption(f"{gpu_status}")
+            if 'python' in specs:
+                st.markdown("#### Python")
+                st.caption(f"Version: {specs['python']['version']}")
+            
+            # Poppler Status
+            st.markdown("#### Poppler")
+            poppler_status = status.get('poppler', {})
+            if poppler_status.get('installed'):
+                st.caption("✅ **Poppler:** Installed")
+            else:
+                st.caption(f"❌ **Poppler:** {poppler_status.get('error', 'Not installed')}")
 
 
-# === Hardware Info Renderer as Markdown-like Table ===
-def render_hardware_info(system_specs):
-    """Render hardware information in a clean Markdown-style table."""
-    if not system_specs:
-        st.info("⚠️ Hardware info unavailable")
-        return
-
-    st.markdown("**CPU**")
-    st.caption(f"{system_specs['cpu']['cores_physical']} cores")
-
-    st.markdown("**RAM**")
-    st.caption(f"{system_specs['memory']['total_gb']:.1f} GB")
-
-    st.markdown("**GPU**")
-    st.caption("Available" if system_specs.get('gpu_available') else "Not detected")
-
-    st.markdown("**OS**")
-    st.caption(f"{system_specs['os']['name']} {system_specs['os']['version']}")
-
-    st.markdown("**Python**")
-    st.caption(f"{system_specs['python']['version']} - {system_specs['python']['build']}")
-
-
-# === Ollama Install Guide ===
 def render_ollama_install_guide():
-    """Render Ollama installation guide."""
+    """Render Ollama installation guide modal."""
+    if not st.session_state.get('show_ollama_install_guide'):
+        return
+    
     instructions = get_ollama_install_instructions()
     st.markdown("#### Ollama Installation")
     st.markdown(f"**Method:** {instructions['method']}")
@@ -277,74 +226,105 @@ def render_ollama_install_guide():
     if 'cli_command' in instructions:
         st.code(instructions['cli_command'], language='bash')
     if 'url' in instructions:
-        if st.button("Open Download Page", key="open_ollama_dl", width='stretch'):
+        if st.button("Open Download Page", key="open_ollama_dl"):
             open_ollama_download_page()
-    if st.button("Close", key="close_ollama_guide", width='stretch'):
+    if st.button("Close", key="close_ollama_guide"):
         st.session_state['show_ollama_install_guide'] = False
         st.rerun()
 
 
-# === check_system_ready_for_upload (updated) ===
 def check_system_ready_for_upload():
+    """Check if system is ready for file upload operations."""
     status = st.session_state.get('system_status') or check_all_dependencies()
     st.session_state['system_status'] = status
     missing = []
 
-    # Ollama
+    # Check Ollama
     if not status['ollama']['installed']:
         missing.append("Ollama not installed")
-    elif not status['ollama'].get('service_status', {}).get('accessible'):
+    elif not status['ollama'].get('running'):
         missing.append("Ollama service not running")
-
-    # Airplane mode + missing models
-    airplane = status['ollama'].get('airplane_mode', {})
-    if airplane.get('in_airplane_mode'):
-        missing_models = check_required_ollama_models().get('missing_models', [])
+    else:
+        models_info = status['ollama'].get('models', {})
+        
+        # Check for missing models
+        missing_models = models_info.get('missing_models', [])
         if missing_models:
-            missing.append(f"Airplane mode: cannot download {len(missing_models)} model(s)")
+            missing.append(f"{len(missing_models)} Ollama model(s) not installed")
+        
+        # Check for broken models
+        broken_models = models_info.get('broken_models', [])
+        if broken_models:
+            missing.append(f"{len(broken_models)} Ollama model(s) broken/not working")
+        
+        # Overall working status
+        if not models_info.get('all_working'):
+            if not missing_models and not broken_models:
+                missing.append("Some Ollama models are not working properly")
+        
+        # # Check airplane mode
+        # airplane_info = status['ollama'].get('airplane_mode', {})
+        # if not airplane_info.get('in_airplane_mode') and airplane_info.get('can_verify'):
+        #     missing.append("Airplane mode not enabled (security requirement)")
 
-    # OCR
-    ocr_status = status['ocr_status']
-    if not ocr_status['at_least_one_available']:
-        missing_ocr = [n for n, s in ocr_status['ocr_models'].items() if not s['installed']]
-        missing.append(f"No OCR models. Install: {', '.join(missing_ocr)}")
+    # Check OCR
+    ocr_status = status.get('ocr', {})
+    if not ocr_status.get('at_least_one_available'):
+        missing_ocr = [n for n, s in ocr_status.get('ocr_models', {}).items() if not s.get('installed')]
+        missing.append(f"No OCR models installed. Need: {', '.join(missing_ocr)}")
+
+    # Check Poppler
+    if not status.get('poppler', {}).get('installed'):
+        missing.append("Poppler not installed")
 
     return len(missing) == 0, missing
 
 
-# === prepare_ollama_models_background (respects airplane mode) ===
 def prepare_ollama_models_background(progress_container=None):
+    """Prepare Ollama models in background - force pull all required models."""
     models_status = check_required_ollama_models()
-    missing_models = models_status.get('missing_models', [])
+    required_models = models_status.get('required', [])
     
-    if not missing_models:
-        return {'success': True, 'message': 'All models ready', 'models_prepared': [], 'already_available': models_status.get('installed', [])}
-
-    status = st.session_state.get('system_status', {})
-    airplane = status.get('ollama', {}).get('airplane_mode', {})
-    if airplane.get('in_airplane_mode'):
+    if not required_models:
         return {
-            'success': False,
-            'message': 'Cannot download models in airplane mode',
+            'success': True,
+            'message': 'No models required for this hardware',
             'models_prepared': [],
-            'already_available': models_status.get('installed', []),
-            'failed': missing_models
+            'already_available': []
         }
 
+    # Check airplane mode before attempting downloads
+    status = st.session_state.get('system_status', {})
+    airplane = status.get('ollama', {}).get('airplane_mode', {})
+    
+    if airplane.get('in_airplane_mode') and airplane.get('can_verify'):
+        # In airplane mode - can't download
+        missing = models_status.get('missing_models', [])
+        broken = models_status.get('broken_models', [])
+        
+        return {
+            'success': False,
+            'message': 'Cannot download models - airplane mode is enabled (security requirement)',
+            'models_prepared': [],
+            'already_available': [m for m in required_models if m not in missing and m not in broken],
+            'failed': missing + broken
+        }
+
+    # Not in airplane mode or can't verify - attempt to pull all models
     if progress_container:
         with progress_container:
-            st.info(f"Preparing {len(missing_models)} model(s)...")
+            st.info(f"Pulling {len(required_models)} model(s)...")
             progress_bar = st.progress(0)
             status_text = st.empty()
             completed = 0
-            total = len(missing_models)
+            total = len(required_models)
 
             def progress_callback(model_name, status_type, message):
                 nonlocal completed
-                if status_type in ['completed', 'already_installed', 'failed']:
+                if status_type in ['completed', 'failed']:
                     completed += 1
                 progress_bar.progress(completed / total)
-                status_text.text(f"{completed}/{total} models prepared")
+                status_text.text(f"{completed}/{total} models processed")
 
             result = download_all_required_models(progress_callback=progress_callback)
     else:
@@ -353,12 +333,15 @@ def prepare_ollama_models_background(progress_container=None):
     return {
         'success': result['success'],
         'message': result['message'],
-        'models_prepared': result.get('models_downloaded', []),
-        'already_available': result.get('models_already_installed', []),
+        'models_prepared': result.get('models_pulled', []),
+        'already_available': [],
         'failed': result.get('models_failed', [])
     }
 
 
-# === Backward compatibility ===
+
+# Backward compatibility
 def check_system_ready():
-    return check_system_ready_for_upload()
+    return_val = check_system_ready_for_upload()
+    log_system_status(session_state=st.session_state, system_status_payload=return_val, page_name='/system_status') 
+    return return_val

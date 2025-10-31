@@ -8,7 +8,8 @@ from datetime import timezone
 if __name__ == "__main__":
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from config.config import FULL_DATABASE_FILE_PATH
+from config.config import *
+
 
 
 def get_utc_datetime():
@@ -70,3 +71,53 @@ def print_directory_tree(startpath, indent="", prefix="", exclude_dot_folders=Tr
 
 
 # print_directory_tree(APP_DIRECTORY)
+
+
+def custom_badge(label, color="gray", icon=""):
+    colors = {
+        # Core
+        "green":   "#10B981",  # emerald-500
+        "red":     "#EF4444",  # red-500
+        "orange":  "#F59E0B",  # amber-500
+        "gray":    "#6B7280",  # slate-500
+        
+        # New colors
+        "blue":    "#3B82F6",  # blue-500
+        "indigo":  "#6366F1",  # indigo-500
+        "purple":  "#8B5CF6",  # violet-500
+        "pink":    "#EC4899",  # pink-500
+        "yellow":  "#FBBF24",  # yellow-400
+        "teal":    "#14B8A6",  # teal-500
+        "cyan":    "#06B6D4",  # cyan-500
+        "lime":    "#84CC16",  # lime-500
+        
+        # Light variants
+        "lightgreen": "#86EFAC",
+        "lightred":   "#FCA5A5",
+        "lightblue":  "#93C5FD",
+        
+        # Dark / status
+        "success": "#10B981",
+        "warning": "#F59E0B",
+        "danger":  "#EF4444",
+        "info":    "#3B82F6",
+        "neutral": "#6B7280",
+    }
+    bg = colors.get(color, "#6B7280")
+    html = f"""
+    <div style="
+        display: inline-flex;
+        justify-content: top;
+        align-items: top;
+        background-color: {bg}10;
+        color: {bg};
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-weight: bold;
+        font-size: 14px;
+        border: 2px solid {bg};
+    ">
+        {icon} {label}
+    </div>
+    """
+    return html

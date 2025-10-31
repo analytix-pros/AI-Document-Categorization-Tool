@@ -15,6 +15,7 @@ from config.config import FULL_DATABASE_FILE_PATH
 from initial_setup.system_checker import check_ocr_dependencies
 from initial_setup.poppler_installer import install_poppler
 
+
 print(f"Current Directory: {os.getcwd()}")
 pdf_path = os.path.join("utils", "65474 BK Discharged.pdf")  # ← SAMPLE PDF
 
