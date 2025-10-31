@@ -9,7 +9,7 @@ from datetime import datetime
 from app.components.system_status import prepare_ollama_models_background, check_system_ready_for_upload
 from database.db_models import create_connection, Batch, Document, DocumentCategory
 from utils.utils_system_specs import get_system_specs
-from utils.ocr_processing import process_document_with_available_ocr
+from utils.ocr_processing import process_document_with_available_ocr, convert_pdf_to_image_bytes
 from utils.utils import custom_badge
 
 
@@ -200,12 +200,18 @@ def create_batch_and_documents():
         pdf_bytes = uploaded_file.getvalue()
         print(f"  PDF size: {len(pdf_bytes)} bytes")
         
+        # Convert PDF pages to PNG image bytes
+        print("  Converting PDF to image...")
+        image_bytes = convert_pdf_to_image_bytes(pdf_bytes)
+        print(f"  Image size: {len(image_bytes)} bytes")
+        
         document_data = {
             "organization_uuid": org_uuid,
             "batch_uuid": batch_uuid,
             "upload_name": uploaded_file.name,
             "upload_folder": None,
-            "pdf": pdf_bytes
+            "pdf": pdf_bytes,
+            "image_of_pdf": image_bytes
         }
         
         print(f"  Inserting document into database...")
@@ -762,7 +768,7 @@ def _render_expander_content(result: dict, row_idx: int):
                     input=pdf_bytes,
                     width="100%",
                     height=row_height_default - 50,
-                    zoom_level="auto-height",           # This is the key!
+                    zoom_level="auto", 
                     # render_mode="canvas",              # Required for fit-height to work
                     show_page_separator=True,
                     viewer_align="center"

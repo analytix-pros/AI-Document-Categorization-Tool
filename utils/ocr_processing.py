@@ -95,6 +95,114 @@ def _load_pdf_or_image(document_input: Union[str, bytes]) -> List["Image.Image"]
 
 
 # --------------------------------------------------------------
+# NEW: Convert PDF pages to PNG image bytes for database storage
+# --------------------------------------------------------------
+def convert_pdf_to_image_bytes(document_input: Union[str, bytes]) -> bytes:
+    """
+    Convert all pages of a PDF into a single PNG image stored as bytes.
+    
+    For multi-page PDFs, pages are stacked vertically with spacing.
+    
+    Parameters
+    ----------
+    document_input : str | bytes
+        File system path or raw PDF bytes.
+    
+    Returns
+    -------
+    bytes
+        PNG image bytes containing all PDF pages.
+    """
+    import io
+    
+    images = _load_pdf_or_image(document_input)
+    
+    if len(images) == 1:
+        buf = io.BytesIO()
+        images[0].save(buf, format='PNG')
+        return buf.getvalue()
+    
+    # Multi-page: stack vertically with spacing
+    spacing = 20
+    widths = [img.width for img in images]
+    heights = [img.height for img in images]
+    
+    max_width = max(widths)
+    total_height = sum(heights) + spacing * (len(images) - 1)
+    
+    combined = Image.new('RGB', (max_width, total_height), 'white')
+    
+    y_offset = 0
+    for img in images:
+        x_offset = (max_width - img.width) // 2
+        combined.paste(img, (x_offset, y_offset))
+        y_offset += img.height + spacing
+    
+    buf = io.BytesIO()
+    combined.save(buf, format='PNG')
+    return buf.getvalue()
+
+
+# --------------------------------------------------------------
+# INTERNAL: Run OCR on images using the specified model
+# --------------------------------------------------------------
+def _extract_pages_safe(model_name: str, images: List["Image.Image"]) -> List[str]:
+    """
+    Extract text from images using the specified OCR model.
+    Returns a list of strings (one per page).
+    """
+    import tempfile
+    import shutil
+
+    if model_name == "Tesseract":
+        import pytesseract
+        pages = []
+        for img in images:
+            text = pytesseract.image_to_string(img)
+            pages.append(text)
+        return pages
+
+    elif model_name == "EasyOCR":
+        import easyocr
+        reader = easyocr.Reader(['en'])
+        pages = []
+        for img in images:
+            tmp_dir = tempfile.mkdtemp()
+            try:
+                p = os.path.join(tmp_dir, "temp.png")
+                img.save(p, "PNG")
+                result = reader.readtext(p)
+                lines = [word_info[1] for word_info in result]
+                pages.append("\n".join(lines))
+            finally:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+        return pages
+
+    elif model_name == "PaddleOCR":
+        from paddleocr import PaddleOCR
+        ocr = PaddleOCR(use_angle_cls=True, lang='en')
+        tmp_dir = tempfile.mkdtemp()
+        img_paths = []
+        try:
+            for i, img in enumerate(images):
+                p = os.path.join(tmp_dir, f"page_{i+1}.png")
+                img.save(p, "PNG")
+                img_paths.append(p)
+
+            pages = []
+            for p in img_paths:
+                result = ocr.ocr(p, cls=True)
+                lines = [word_info[1][0] for line in result for word_info in line]
+                pages.append("\n".join(lines))
+            return pages
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    else:
+        raise ValueError(f"Unknown model: {model_name}")
+
+
+# --------------------------------------------------------------
 # 1. MAIN FUNCTION – only tries *installed* models
 # --------------------------------------------------------------
 def process_document_with_available_ocr(
@@ -173,7 +281,8 @@ def process_document_with_all_ocr_models(
         JSON string with one entry per successful model.
     """
     install_poppler()
-    all_models = ['Tesseract', 'EasyOCR', 'PaddleOCR']
+    all_models = ["Tesseract", "EasyOCR", "PaddleOCR"]
+    
     models_to_try = []
     if preferred_model and preferred_model in all_models:
         models_to_try.append(preferred_model)
@@ -193,69 +302,13 @@ def process_document_with_all_ocr_models(
                 for i, page_text in enumerate(raw_pages, start=1)
             }
         except Exception as e:
-            print(f"[DEBUG] {model_name} not available: {e}")
+            print(f"[DEBUG] {model_name} skipped: {e}")
             continue
 
     if not results:
-        error_results = {'error': 'All available OCR models failed'}
+        error_results = {'error': 'All OCR models failed or are unavailable'}
         return error_results
     return results
-
-
-# ————————————————————————————————————————————————————————————
-# SAFE extraction – imports only when needed, catches ImportError
-# ————————————————————————————————————————————————————————————
-def _extract_pages_safe(model_name: str, images: List["Image.Image"]) -> List[str]:
-    """Extract text from a list of PIL images using the requested model."""
-    if model_name == 'Tesseract':
-        try:
-            import pytesseract
-        except ImportError as e:
-            raise ImportError(f"Tesseract dependency missing: {e}")
-
-        return [pytesseract.image_to_string(img) for img in images]
-
-    elif model_name == 'EasyOCR':
-        try:
-            import easyocr
-        except ImportError as e:
-            raise ImportError(f"EasyOCR dependency missing: {e}")
-
-        reader = easyocr.Reader(['en'], gpu=False)
-        pages = []
-        for img in images:
-            result = reader.readtext(img, paragraph=False)
-            lines = [item[1] for item in result]
-            pages.append("\n".join(lines))
-        return pages
-
-    elif model_name == 'PaddleOCR':
-        try:
-            from paddleocr import PaddleOCR
-            import tempfile, shutil
-        except ImportError as e:
-            raise ImportError(f"PaddleOCR dependency missing: {e}")
-
-        ocr = PaddleOCR(use_textline_orientation=True, lang='en')
-        tmp_dir = tempfile.mkdtemp()
-        img_paths = []
-        try:
-            for i, img in enumerate(images):
-                p = os.path.join(tmp_dir, f"page_{i+1}.png")
-                img.save(p, "PNG")
-                img_paths.append(p)
-
-            pages = []
-            for p in img_paths:
-                result = ocr.ocr(p, cls=True)
-                lines = [word_info[1][0] for line in result for word_info in line]
-                pages.append("\n".join(lines))
-            return pages
-        finally:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
-
-    else:
-        raise ValueError(f"Unknown model: {model_name}")
 
 
 # ————————————————————————————————————————————————————————————

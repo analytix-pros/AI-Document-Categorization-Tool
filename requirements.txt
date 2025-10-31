@@ -53,6 +53,8 @@ openpyxl
 ollama 
 pydantic 
 instructor
+langchain
+langchain-ollama
 
 # ============================
 # Poppler dependencies
