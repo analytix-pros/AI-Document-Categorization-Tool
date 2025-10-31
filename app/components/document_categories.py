@@ -11,17 +11,27 @@ def get_all_categories(organization_uuid=None):
     conn = create_connection()
     query = """
         SELECT 
-            c.category_uuid, c.parent_category_uuid, c.organization_uuid,
-            c.name, c.hierarchy_level, c.use_stamps, c.stamps_uuid,
-            c.description, c.keywords, c.min_threshold, c.exclusion_rules,
-            c.file_rename_rules, c.is_active,
+            c.category_uuid, 
+            c.parent_category_uuid, 
+            c.organization_uuid,
+            c.name, 
+            c.hierarchy_level, 
+            c.use_stamps,
+            c.description, 
+            c.use_keywords, 
+            c.keywords, 
+            c.use_llm, 
+            c.high_min_threshold,
+            c.medium_min_threshold, 
+            c.exclusion_rules,
+            c.file_rename_rules, 
+            c.is_active,
             p.name as parent_name,
-            s.name as stamp_name,
             o.name as org_name,
-            c.created_datetime, c.updated_datetime
+            c.created_datetime, 
+            c.updated_datetime
         FROM category c
         LEFT JOIN category p ON c.parent_category_uuid = p.category_uuid
-        LEFT JOIN stamps s ON c.stamps_uuid = s.stamps_uuid
         LEFT JOIN organization o ON c.organization_uuid = o.organization_uuid
         WHERE c.is_active = 1
     """
@@ -112,7 +122,7 @@ def prepare_display_dataframe(df, level):
     """Prepare dataframe for display with selected columns in logical order."""
     display_df = df.copy()
     
-    columns_order = ['name', 'description', 'keywords', 'min_threshold']
+    columns_order = ['name', 'description', 'high_min_threshold', 'medium_min_threshold', 'use_keywords', 'keywords', 'use_llm', 'use_stamps']
     
     if level > 1:
         columns_order.insert(1, 'parent_name')
@@ -125,8 +135,11 @@ def prepare_display_dataframe(df, level):
         'parent_name': 'Parent Category',
         'description': 'Description',
         'keywords': 'Keywords',
-        'min_threshold': 'Min Threshold',
-        'stamp_name': 'Stamp'
+        'high_min_threshold': 'High Confidence (>)',
+        'medium_min_threshold': 'Medium Confidence',
+        'use_keywords': 'Use Keyword Matching',
+        'use_llm': 'Use LLMs For Matching',
+        'use_stamps': 'Find Stamps',
     }
     
     display_df = display_df[[col for col in columns_order if col in display_df.columns]]

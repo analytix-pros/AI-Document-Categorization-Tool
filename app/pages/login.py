@@ -56,10 +56,9 @@ def render_login_page(authenticate_callback):
     Args:
         authenticate_callback: Function to call for authentication (username, password) -> (success, message)
     """
+    st.title("AI Document Labeling")
     
-    st.title("AI Document Labeling System")
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([3, 2, 3])
 
     # Log page view
     log_landing_page(st.session_state, '/login')
@@ -67,6 +66,7 @@ def render_login_page(authenticate_callback):
     print("=== LOGIN PAGE VIEWED ===")
     
     with col2:
+        
         # st.subheader("Login")
         
         with st.form("login_form"):

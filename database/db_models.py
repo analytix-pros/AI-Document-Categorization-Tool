@@ -61,7 +61,6 @@ TABLE_REQUIRED_FIELDS: Dict[str, List[str]] = {
     "llm_models": ["system", "name", "description", "min_ram_gb", "default_timeout", "gpu_required", "gpu_optional", "min_vram_gb"],
     "category": ["organization_uuid", "name", "hierarchy_level"],
     "stamps": ["organization_uuid", "name"],
-    # NOTE: created_by removed – it is now metadata
     "batch": ["organization_uuid", "system_metadata", "status", "number_of_files", "process_time"],
     "document": ["organization_uuid", "batch_uuid", "upload_name"],
     "document_category": ["organization_uuid", "document_uuid"],
@@ -74,7 +73,11 @@ TABLE_OPTIONAL_FIELDS: Dict[str, List[str]] = {
     "automation": ["created_by", "updated_by"],  # kept only for legacy – will be ignored
     "ocr_models": [],
     "llm_models": [],
-    "category": ["parent_category_uuid", "use_stamps", "stamps_uuid", "description", "keywords", "file_rename_rules", "created_by", "updated_by"],
+    "category": [
+        "parent_category_uuid", "use_stamps", "description", "use_keywords", 
+        "keywords", "use_llm", "high_min_threshold", "medium_min_threshold", 
+        "exclusion_rules", "file_rename_rules", "created_by", "updated_by"
+    ],
     "stamps": ["description", "keywords", "created_by", "updated_by"],
     "batch": ["automation_uuid"],
     "document": ["upload_folder", "pdf", "created_by", "updated_by"],

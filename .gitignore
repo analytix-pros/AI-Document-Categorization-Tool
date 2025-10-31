@@ -4,10 +4,13 @@
 # Database file
 *.db
 
+# PDF files
+*.pdf
+
 # Folders
 tmp
 
-# System Files
+# System and Other Files
 *.DS_Store*
 */.DS_Store
 .DS_Store

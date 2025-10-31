@@ -3,11 +3,22 @@ import streamlit as st
 import json
 import time
 import random
+import base64
+from io import BytesIO
 from datetime import datetime
 from app.components.system_status import prepare_ollama_models_background, check_system_ready_for_upload
 from database.db_models import create_connection, Batch, Document, DocumentCategory
 from utils.utils_system_specs import get_system_specs
-from utils.ocr_processing import process_document_with_all_ocr_models
+from utils.ocr_processing import process_document_with_available_ocr
+
+
+# --------------------------------------------------------------
+#  Helper – turn a bytes object into a data-uri that st.components.v1.html can display
+# --------------------------------------------------------------
+def _pdf_to_data_uri(pdf_bytes: bytes) -> str:
+    """Encode PDF bytes to a base64 data-uri that can be embedded in HTML."""
+    b64 = base64.b64encode(pdf_bytes).decode()
+    return f"data:application/pdf;base64,{b64}"
 
 
 def render_ai_analysis_page():
@@ -29,6 +40,7 @@ def render_ai_analysis_page():
     
     if start_categorization:
         print("Rendering analysis workflow elements...")
+        st.markdown("---")
         render_batch_metrics()
         st.markdown("---")
         render_analysis_content()
@@ -93,9 +105,9 @@ def render_upload_section(disabled: bool = False):
                     # Two disabled buttons side-by-side
                     btn_col1, btn_col2 = st.columns(2)
                     with btn_col1:
-                        st.button("Start AI Analysis", type="primary", disabled=True, use_container_width=True)
+                        st.button("Start AI Analysis", type="primary", disabled=True, width='stretch')
                     with btn_col2:
-                        if st.button("Clear Upload", use_container_width=True):
+                        if st.button("Clear Upload", width='stretch'):
                             print("User clicked 'Clear Upload' button")
                             st.session_state['uploaded_files'] = []
                             clear_analysis_session()
@@ -106,14 +118,14 @@ def render_upload_section(disabled: bool = False):
                     # Two active buttons side-by-side
                     btn_col1, btn_col2 = st.columns(2)
                     with btn_col1:
-                        if st.button("Start AI Analysis", type="primary", use_container_width=True):
+                        if st.button("Start AI Analysis", type="primary", width='stretch'):
                             print("User clicked 'Start AI Analysis' button")
                             create_batch_and_documents()
                             st.session_state['start_categorization'] = True
                             print("Set start_categorization to True, triggering rerun")
                             st.rerun()
                     with btn_col2:
-                        if st.button("Clear Upload", use_container_width=True):
+                        if st.button("Clear Upload", width='stretch'):
                             print("User clicked 'Clear Upload' button")
                             st.session_state['uploaded_files'] = []
                             clear_analysis_session()
@@ -150,7 +162,7 @@ def create_batch_and_documents():
     
     print("\nGathering system specs...")
     system_specs = get_system_specs()
-    system_metadata_json = json.dumps(system_specs)
+    system_metadata_json = system_specs
     print(f"System specs gathered: {len(system_metadata_json)} characters")
     
     # --- STEP 1: Create Batch (metadata auto-filled) ---
@@ -159,14 +171,14 @@ def create_batch_and_documents():
     batch_data = {
         "organization_uuid": org_uuid,
         "automation_uuid": None,
-        "system_metadata": system_metadata_json,
+        "system_metadata": json.dumps(system_metadata_json, indent=4, default=str),
         "status": "started",
         "number_of_files": number_of_files,
         "process_time": 0
     }
 
     print("Batch data prepared:")
-    print(json.dumps(batch_data, indent=2, default=str))
+    print(json.dumps(batch_data, indent=4, default=str))
     
     print("\nInserting batch into database...")
     batch_uuid = batch.insert(st.session_state, '/ai-analyze', batch_data)
@@ -266,7 +278,7 @@ def render_document_processing():
             print(f"PDF size: {len(pdf_bytes)} bytes")
             
             print("Starting OCR processing...")
-            ocr_results = process_document_with_all_ocr_models(pdf_bytes)
+            ocr_results = process_document_with_available_ocr(pdf_bytes)
             print(f"OCR processing complete. Results: {len(str(ocr_results))} characters")
             
             org_uuid = st.session_state.get('org_uuid')
@@ -284,7 +296,7 @@ def render_document_processing():
                 "stamps_uuid": None,
                 "category_confidence": None,
                 "all_category_confidence": None,
-                "ocr_text": json.dumps(ocr_results, indent=4),
+                "ocr_text": json.dumps(ocr_results, indent=4, default=str),
                 "ocr_text_confidence": None,
                 "override_category_uuid": None,
                 "override_context": None
@@ -299,7 +311,7 @@ def render_document_processing():
                 'filename': current_file.name,
                 'document_uuid': current_doc_uuid,
                 'document_category_uuid': doc_category_uuid,
-                'ocr_text': json.dumps(ocr_results, indent=4),
+                'ocr_text': json.dumps(ocr_results, indent=4, default=str),
                 'category': None,
                 'confidence': None,
                 'subcategory': None,
@@ -393,7 +405,7 @@ def render_document_processing():
                 update_data = {
                     "category_uuid": None,
                     "category_confidence": llm_confidence,
-                    "all_category_confidence": json.dumps({"placeholder": llm_confidence})
+                    "all_category_confidence": json.dumps({"placeholder": llm_confidence}, indent=4, default=str)
                 }
                 
                 doc_category.update(
@@ -576,7 +588,7 @@ def render_categorization_results():
             cols = st.columns(row_spacing, vertical_alignment="center")
 
             # --- Custom text size (adjust '1.1rem' as needed) ---
-            text_size = "1.1rem"  # Options: 0.9rem, 1rem, 1.1rem, 1.2rem, etc.
+            text_size = "1.0rem"  # Options: 0.9rem, 1rem, 1.1rem, 1.2rem, etc.
 
             # File name
             filename = res.get('filename', 'N/A')
@@ -618,9 +630,6 @@ def render_categorization_results():
         st.markdown("---")
 
 
-# --------------------------------------------------------------
-#  Helper that draws the *former* modal content inside an expander
-# --------------------------------------------------------------
 def _render_expander_content(result: dict, row_idx: int):
     """All the UI that used to be in the modal – now inside an expander."""
     st.markdown("---")
@@ -698,7 +707,9 @@ def _render_expander_content(result: dict, row_idx: int):
 
     # ---------- Row 3 – OCR text + PDF preview ----------
     r3_col1, r3_col2 = st.columns([4, 6])
+    row_height_default = 600
 
+    # ---- OCR Text -------------------------------------------------
     with r3_col1:
         st.markdown("**Extracted Text (OCR)**")
         ocr_text = result.get('ocr_text',
@@ -706,15 +717,54 @@ def _render_expander_content(result: dict, row_idx: int):
         new_ocr_text = st.text_area(
             "OCR Text",
             value=ocr_text,
-            height=300,
+            height=row_height_default,
             key=f"exp_ocr_{row_idx}",
             label_visibility="collapsed"
         )
 
+    # ---- PDF Preview (with streamlit-pdf-viewer) -----------------------------
     with r3_col2:
         st.markdown("**Document Preview**")
-        if result.get('pdf_data'):
-            st.write("PDF preview would be rendered here")
+
+        # 1. Try to get the PDF bytes from the *uploaded* file list (fastest)
+        pdf_bytes = None
+        if 'uploaded_files' in st.session_state:
+            # match by filename (case-insensitive)
+            name = result.get('filename')
+            for f in st.session_state['uploaded_files']:
+                if f.name.lower() == name.lower():
+                    pdf_bytes = f.getvalue()
+                    break
+
+        # 2. Fallback: query the DB column `pdf` (you already store it)
+        if pdf_bytes is None and result.get('document_uuid'):
+            conn = create_connection()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT pdf FROM document WHERE document_uuid = ? AND organization_uuid = ?",
+                (result['document_uuid'], st.session_state.get('org_uuid'))
+            )
+            row = cur.fetchone()
+            conn.close()
+            if row:
+                pdf_bytes = row[0]
+
+        # 3. Render the PDF with streamlit-pdf-viewer
+        if pdf_bytes:
+            from streamlit_pdf_viewer import pdf_viewer  # Import inside function to avoid global issues
+            
+            # Wrap in st.container() for better sizing in columns/expanders
+            pdf_container = st.container(height=row_height_default, width='stretch')
+            with pdf_container:
+                pdf_viewer(
+                    input=pdf_bytes,
+                    width="100%",
+                    height=row_height_default - 50,
+                    zoom_level="auto-height",           # This is the key!
+                    # render_mode="canvas",              # Required for fit-height to work
+                    show_page_separator=True,
+                    viewer_align="center"
+                )
         else:
             st.info(
                 "PDF preview would be displayed here\n\n"
@@ -730,7 +780,7 @@ def _render_expander_content(result: dict, row_idx: int):
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        if st.button("Save Changes", type="primary", key=f"exp_save_{row_idx}"):
+        if st.button("Save Changes", type="primary", key=f"exp_save_{row_idx}", use_container_width=True):
             result['category'] = new_category
             result['subcategory'] = new_subcategory if new_subcategory != "None" else None
             result['ocr_text'] = new_ocr_text
@@ -738,12 +788,11 @@ def _render_expander_content(result: dict, row_idx: int):
             st.rerun()
 
     with col2:
-        if st.button("Discard Changes", key=f"exp_discard_{row_idx}"):
+        if st.button("Discard Changes", key=f"exp_discard_{row_idx}", use_container_width=True):
             st.rerun()
 
     with col3:
-        if st.button("Delete Document", key=f"exp_delete_{row_idx}"):
-            # Remove from the master list
+        if st.button("Delete Document", key=f"exp_delete_{row_idx}", use_container_width=True):
             st.session_state['categorization_results'].pop(row_idx)
             st.success("Document deleted!")
             st.rerun()

@@ -61,6 +61,61 @@ METADATA_FIELDS = {
 # === TABLES WITH STRUCTURED SCHEMA ===
 TABLES = [
     {
+        "name": "logging",
+        "columns": {
+            "logging_uuid": {
+                "primary_key": True,
+                "data_type": "BLOB",
+                "null_constraint": "NOT NULL",
+                "column_default": None,
+                "is_unique": True
+            },
+            "organization_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "user_uuid": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "page": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "message": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "level": {
+                "primary_key": False,
+                "data_type": "TEXT",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            **METADATA_FIELDS
+        },
+        "foreign_keys": [],
+        "indexes": [
+            ("logging_organization_uuid", "CREATE INDEX IF NOT EXISTS logging_organization_uuid ON logging (organization_uuid)"),
+            ("logging_user_uuid", "CREATE INDEX IF NOT EXISTS logging_user_uuid ON logging (user_uuid)"),
+            ("logging_page", "CREATE INDEX IF NOT EXISTS logging_page ON logging (page)"),
+            ("logging_level", "CREATE INDEX IF NOT EXISTS logging_level ON logging (level)")
+        ]
+    },
+    {
         "name": "organization",
         "columns": {
             "organization_uuid": {
@@ -510,16 +565,16 @@ TABLES = [
                 "column_default": None,
                 "is_unique": False
             },
-            "stamps_uuid": {
+            "description": {
                 "primary_key": False,
-                "data_type": "BLOB",
+                "data_type": "TEXT",
                 "null_constraint": "NULL",
                 "column_default": None,
                 "is_unique": False
             },
-            "description": {
+            "use_keywords": {
                 "primary_key": False,
-                "data_type": "TEXT",
+                "data_type": "INTEGER",
                 "null_constraint": "NULL",
                 "column_default": None,
                 "is_unique": False
@@ -531,7 +586,21 @@ TABLES = [
                 "column_default": None,
                 "is_unique": False
             },
-            "min_threshold": {
+            "use_llm": {
+                "primary_key": False,
+                "data_type": "INTEGER",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "high_min_threshold": {
+                "primary_key": False,
+                "data_type": "REAL",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "medium_min_threshold": {
                 "primary_key": False,
                 "data_type": "REAL",
                 "null_constraint": "NULL",
@@ -557,69 +626,12 @@ TABLES = [
         "foreign_keys": [
             "FOREIGN KEY (parent_category_uuid) REFERENCES category (category_uuid)",
             "FOREIGN KEY (organization_uuid) REFERENCES organization (organization_uuid)",
-            "FOREIGN KEY (stamps_uuid) REFERENCES stamps (stamps_uuid)",
             "FOREIGN KEY (created_by) REFERENCES user (user_uuid)",
             "FOREIGN KEY (updated_by) REFERENCES user (user_uuid)"
         ],
         "indexes": [
             ("category_parent_category_uuid", "CREATE INDEX IF NOT EXISTS category_parent_category_uuid ON category (parent_category_uuid)"),
-            ("category_organization_uuid", "CREATE INDEX IF NOT EXISTS category_organization_uuid ON category (organization_uuid)"),
-            ("category_stamps_uuid", "CREATE INDEX IF NOT EXISTS category_stamps_uuid ON category (stamps_uuid)")
-        ]
-    },
-    {
-        "name": "logging",
-        "columns": {
-            "logging_uuid": {
-                "primary_key": True,
-                "data_type": "BLOB",
-                "null_constraint": "NOT NULL",
-                "column_default": None,
-                "is_unique": True
-            },
-            "organization_uuid": {
-                "primary_key": False,
-                "data_type": "BLOB",
-                "null_constraint": "NULL",
-                "column_default": None,
-                "is_unique": False
-            },
-            "user_uuid": {
-                "primary_key": False,
-                "data_type": "BLOB",
-                "null_constraint": "NULL",
-                "column_default": None,
-                "is_unique": False
-            },
-            "page": {
-                "primary_key": False,
-                "data_type": "TEXT",
-                "null_constraint": "NULL",
-                "column_default": None,
-                "is_unique": False
-            },
-            "message": {
-                "primary_key": False,
-                "data_type": "TEXT",
-                "null_constraint": "NULL",
-                "column_default": None,
-                "is_unique": False
-            },
-            "level": {
-                "primary_key": False,
-                "data_type": "TEXT",
-                "null_constraint": "NULL",
-                "column_default": None,
-                "is_unique": False
-            },
-            **METADATA_FIELDS
-        },
-        "foreign_keys": [],
-        "indexes": [
-            ("logging_organization_uuid", "CREATE INDEX IF NOT EXISTS logging_organization_uuid ON logging (organization_uuid)"),
-            ("logging_user_uuid", "CREATE INDEX IF NOT EXISTS logging_user_uuid ON logging (user_uuid)"),
-            ("logging_page", "CREATE INDEX IF NOT EXISTS logging_page ON logging (page)"),
-            ("logging_level", "CREATE INDEX IF NOT EXISTS logging_level ON logging (level)")
+            ("category_organization_uuid", "CREATE INDEX IF NOT EXISTS category_organization_uuid ON category (organization_uuid)")
         ]
     },
     {
@@ -725,6 +737,13 @@ TABLES = [
                 "is_unique": False
             },
             "pdf": {
+                "primary_key": False,
+                "data_type": "BLOB",
+                "null_constraint": "NULL",
+                "column_default": None,
+                "is_unique": False
+            },
+            "image_of_pdf": {
                 "primary_key": False,
                 "data_type": "BLOB",
                 "null_constraint": "NULL",
@@ -944,7 +963,7 @@ INSERTS = [
                 "min_vram_gb": 0,
                 "default_language": "English",
                 "default_dpi": 400,
-                "max_pages": 10
+                "max_pages": 30
             },
             {
                 "name": "EasyOCR",
@@ -956,7 +975,7 @@ INSERTS = [
                 "min_vram_gb": 4,
                 "default_language": "English",
                 "default_dpi": 500,
-                "max_pages": 15
+                "max_pages": 30
             },
             {
                 "name": "PaddleOCR",
@@ -968,7 +987,7 @@ INSERTS = [
                 "min_vram_gb": 4,
                 "default_language": "English",
                 "default_dpi": 550,
-                "max_pages": 20
+                "max_pages": 30
             }
         ]
     },
@@ -1059,18 +1078,16 @@ INSERTS = [
         "table": "category",
         "columns": [
             "category_uuid", "parent_category_uuid", "organization_uuid", "name", "hierarchy_level",
-            "use_stamps", "stamps_uuid", "description", "keywords", "min_threshold", "exclusion_rules",
-            "file_rename_rules", "is_active", "created_datetime", "created_by", "updated_datetime", "updated_by"
+            "use_stamps", "description", "use_keywords", "keywords", "use_llm", "high_min_threshold", "medium_min_threshold",
+            "exclusion_rules", "file_rename_rules", "is_active", "created_datetime", "created_by", "updated_datetime", "updated_by"
         ],
         "uuid_keys": {"category_uuid": ["parent_category_uuid", "organization_uuid", "name"]},
         "lookup_keys": {
             "parent_category_uuid": {
-                "table": "category",
-                "lookup_columns": ["organization_uuid", "name"]
-            },
-            "stamps_uuid": {
-                "table": "stamps",
-                "lookup_columns": ["organization_uuid", "name"]
+                "source_table": "category",
+                "source_derived_uuid": "category_uuid",
+                "source_matched_columns": ["organization_uuid", "name"],
+                "lookup_column_in_data": ["organization_uuid", "parent_category_name"]
             }
         },
         "data": [
@@ -1080,10 +1097,12 @@ INSERTS = [
                 "name": "Garnishments",
                 "hierarchy_level": 1,
                 "use_stamps": 0,
-                "stamps_uuid": None,
                 "description": "Documents related to wage or bank garnishments",
+                "use_keywords": 1,
                 "keywords": "['garnishment', 'garnish', 'wage', 'bank account', 'earnings']",
-                "min_threshold": 0.75
+                "use_llm": 0,
+                "high_min_threshold": 0.75,
+                "medium_min_threshold": 0.50
             },
             {
                 "parent_category_name": None,
@@ -1091,10 +1110,12 @@ INSERTS = [
                 "name": "Transcript of Judgments",
                 "hierarchy_level": 1,
                 "use_stamps": 0,
-                "stamps_uuid": None,
                 "description": "Court transcripts of judgments",
+                "use_keywords": 1,
                 "keywords": "['transcript', 'judgment', 'TOJ', 'court', 'clerk']",
-                "min_threshold": 0.75
+                "use_llm": 0,
+                "high_min_threshold": 0.75,
+                "medium_min_threshold": 0.50
             },
             {
                 "parent_category_name": None,
@@ -1102,10 +1123,12 @@ INSERTS = [
                 "name": "Service",
                 "hierarchy_level": 1,
                 "use_stamps": 0,
-                "stamps_uuid": None,
                 "description": "Service of process documents",
+                "use_keywords": 1,
                 "keywords": "['service', 'served', 'process server', 'certified mail', 'summons']",
-                "min_threshold": 0.75
+                "use_llm": 0,
+                "high_min_threshold": 0.75,
+                "medium_min_threshold": 0.50
             },
             {
                 "parent_category_name": "Garnishments",
@@ -1113,10 +1136,12 @@ INSERTS = [
                 "name": "Wage Garn",
                 "hierarchy_level": 2,
                 "use_stamps": 0,
-                "stamps_uuid": None,
                 "description": "Wage garnishment documents",
+                "use_keywords": 1,
                 "keywords": "['wage', 'employer', 'earnings', 'payroll', 'salary']",
-                "min_threshold": 0.75
+                "use_llm": 1,
+                "high_min_threshold": 0.75,
+                "medium_min_threshold": 0.50
             },
             {
                 "parent_category_name": "Garnishments",
@@ -1124,32 +1149,38 @@ INSERTS = [
                 "name": "Bank Garn",
                 "hierarchy_level": 2,
                 "use_stamps": 0,
-                "stamps_uuid": None,
                 "description": "Bank garnishment documents",
+                "use_keywords": 1,
                 "keywords": "['bank', 'account', 'financial institution', 'deposit', 'checking', 'savings']",
-                "min_threshold": 0.75
+                "use_llm": 1,
+                "high_min_threshold": 0.75,
+                "medium_min_threshold": 0.50
             },
             {
                 "parent_category_name": "Transcript of Judgments",
                 "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae",
                 "name": "Accepted TOJ",
                 "hierarchy_level": 2,
-                "use_stamps": 0,
-                "stamps_uuid": None,
+                "use_stamps": 1,
                 "description": "Accepted transcript of judgment",
+                "use_keywords": 1,
                 "keywords": "['accepted', 'approved', 'filed', 'recorded', 'issued']",
-                "min_threshold": 0.75
+                "use_llm": 1,
+                "high_min_threshold": 0.75,
+                "medium_min_threshold": 0.50
             },
             {
                 "parent_category_name": "Transcript of Judgments",
                 "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae",
                 "name": "Rejected TOJ",
                 "hierarchy_level": 2,
-                "use_stamps": 0,
-                "stamps_uuid": None,
+                "use_stamps": 1,
                 "description": "Rejected transcript of judgment",
+                "use_keywords": 1,
                 "keywords": "['rejected', 'denied', 'insufficient', 'incomplete']",
-                "min_threshold": 0.75
+                "use_llm": 1,
+                "high_min_threshold": 0.75,
+                "medium_min_threshold": 0.50
             },
             {
                 "parent_category_name": "Service",
@@ -1157,10 +1188,12 @@ INSERTS = [
                 "name": "Served",
                 "hierarchy_level": 2,
                 "use_stamps": 0,
-                "stamps_uuid": None,
                 "description": "Successfully served documents",
+                "use_keywords": 1,
                 "keywords": "['served', 'delivered', 'receipt', 'signed', 'accepted']",
-                "min_threshold": 0.75
+                "use_llm": 1,
+                "high_min_threshold": 0.75,
+                "medium_min_threshold": 0.50
             },
             {
                 "parent_category_name": "Service",
@@ -1168,54 +1201,12 @@ INSERTS = [
                 "name": "Non-Served",
                 "hierarchy_level": 2,
                 "use_stamps": 0,
-                "stamps_uuid": None,
                 "description": "Documents that were not successfully served",
+                "use_keywords": 1,
                 "keywords": "['undelivered', 'refused', 'unable to serve', 'not served', 'returned']",
-                "min_threshold": 0.75
-            },
-            {
-                "parent_category_name": "Accepted TOJ",
-                "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae",
-                "name": "Issued TOJ",
-                "hierarchy_level": 3,
-                "use_stamps": 1,
-                "stamps_uuid": "ed4a1a26-e3c9-551c-8c5f-cf247da1e332",
-                "description": "Issued transcript of judgment",
-                "keywords": "['issued', 'date of issue']",
-                "min_threshold": 0.75
-            },
-            {
-                "parent_category_name": "Accepted TOJ",
-                "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae",
-                "name": "Recorded TOJ",
-                "hierarchy_level": 3,
-                "use_stamps": 1,
-                "stamps_uuid": "92e44bd0-fae9-5cdd-9949-cfa283762f2f",
-                "description": "Recorded transcript of judgment",
-                "keywords": "['recorded', 'recording', 'book', 'page']",
-                "min_threshold": 0.75
-            },
-            {
-                "parent_category_name": "Accepted TOJ",
-                "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae",
-                "name": "Exemplified TOJ",
-                "hierarchy_level": 3,
-                "use_stamps": 1,
-                "stamps_uuid": "1af90054-7a28-5eff-ae6b-0a0718adc8bd",
-                "description": "Exemplified transcript of judgment",
-                "keywords": "['exemplified', 'exemplification']",
-                "min_threshold": 0.75
-            },
-            {
-                "parent_category_name": "Accepted TOJ",
-                "organization_uuid": "48c049db-166d-5e42-ba31-67468cf144ae",
-                "name": "Certified TOJ",
-                "hierarchy_level": 3,
-                "use_stamps": 1,
-                "stamps_uuid": "05faf87d-dd46-5fda-adbf-037ade64e28a",
-                "description": "Certified transcript of judgment",
-                "keywords": "['certified', 'certification', 'true copy', 'certified copy']",
-                "min_threshold": 0.75
+                "use_llm": 1,
+                "high_min_threshold": 0.75,
+                "medium_min_threshold": 0.50
             }
         ]
     }

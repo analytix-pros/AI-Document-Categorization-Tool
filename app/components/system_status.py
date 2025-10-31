@@ -130,9 +130,9 @@ def render_system_status_sidebar():
                 
                 airplane = ollama_status.get('airplane_mode', {})
                 if airplane.get('in_airplane_mode'):
-                    st.warning("Internet Disconnected")
+                    st.caption("Internet Disconnected")
                 else:
-                    st.caption("Internet Online")
+                    st.warning("Internet Online")
             else:
                 st.error("Service Not Running")
                 st.caption("Please start Ollama")
@@ -261,6 +261,9 @@ def render_hardware_info(system_specs):
 
     st.markdown("**OS**")
     st.caption(f"{system_specs['os']['name']} {system_specs['os']['version']}")
+
+    st.markdown("**Python**")
+    st.caption(f"{system_specs['python']['version']} - {system_specs['python']['build']}")
 
 
 # === Ollama Install Guide ===

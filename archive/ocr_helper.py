@@ -75,12 +75,21 @@ def process_with_tesseract(document_path):
     try:
         import pytesseract
         from PIL import Image
+        import pypdfium2 as pdfium
         
         # Handle PDF or image
         if document_path.lower().endswith('.pdf'):
-            from pdf2image import convert_from_path
-            images = convert_from_path(document_path)
-            text = '\n\n'.join([pytesseract.image_to_string(img) for img in images])
+            # Use pypdfium2 to convert PDF pages to images
+            pdf = pdfium.PdfDocument(document_path)
+            texts = []
+            for page_num in range(len(pdf)):
+                page = pdf[page_num]
+                bitmap = page.render(scale=2.0)  # 2x scale for better quality
+                pil_image = bitmap.to_pil()
+                texts.append(pytesseract.image_to_string(pil_image))
+                page.close()
+            pdf.close()
+            text = '\n\n'.join(texts)
         else:
             image = Image.open(document_path)
             text = pytesseract.image_to_string(image)
@@ -171,7 +180,6 @@ def display_available_ocr_status():
     return True
 
 
-# Example usage function
 def example_usage():
     """Example of how to use this module."""
     # Get available models

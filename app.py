@@ -11,6 +11,7 @@ from utils.utils_uuid import derive_uuid
 from utils.utils_logging import get_logger_from_session, log_page_view, log_authentication
 from app.pages import login, admin_panel
 from app.components.ai_analysis import render_ai_analysis_page
+from app.components.dashboard import render_dashboard
 from app.components.system_status import render_system_status_sidebar, check_system_ready_for_upload
 
 
@@ -164,6 +165,31 @@ def main():
         render_main_app()
 
 
+def inject_tab_css():
+    st.markdown("""
+    <style>
+    /* Increase font size of tab labels */
+    .stTabs [data-baseweb="tab"] {
+        font-size: 18px !important;   /* Adjust this value */
+        font-weight: 600;
+        padding: 12px 24px !important;   /* Increase padding = larger tabs */
+        margin-right: 8px !important;
+    }
+
+    /* Optional: Make the active tab stand out more */
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        font-size: 20px !important;
+        font-weight: 700;
+    }
+
+    /* Optional: Increase the tab panel content font (if needed) */
+    .stTabs [role="tabpanel"] {
+        font-size: 16px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+
 def render_main_app():
     """Render main application after login."""
     username = st.session_state.get("username", "unknown")
@@ -174,6 +200,7 @@ def render_main_app():
     # --------------------------------------------------------------
     if st.session_state.get("first_load", True):
         with st.sidebar:
+
             # Show a compact status inside the sidebar
             with st.status(
                 "Validating system & loading status…",
@@ -223,6 +250,7 @@ def render_main_app():
         render_system_status_sidebar()   # now fast because the data is cached
 
     # ---- Tabs ---------------------------------------------------------
+    inject_tab_css()
     is_admin = role == "admin"
     print(f"User is admin: {is_admin}")
 
@@ -233,6 +261,7 @@ def render_main_app():
             if st.session_state.get("active_tab") != 0:
                 st.session_state.active_tab = 0
             log_page_view(st.session_state, "/dashboard")
+            # render_dashboard()
             st.info("Dashboard coming soon...")
 
         with tabs[1]:
@@ -259,6 +288,7 @@ def render_main_app():
             if st.session_state.get("active_tab") != 0:
                 st.session_state.active_tab = 0
             log_page_view(st.session_state, "/dashboard")
+            # render_dashboard()
             st.info("Dashboard coming soon...")
 
         with tabs[1]:

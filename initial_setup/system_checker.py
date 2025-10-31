@@ -18,12 +18,100 @@ def get_os_info():
 
 
 def check_internet_connection():
-    """Check if internet connection is available."""
+    """
+    Check Ollama's own internet/airplane-mode status.
+    
+    Returns:
+        dict with the following keys:
+            ollama_connected_to_internet    - bool - True only when Ollama can reach the internet
+            airplane_mode                   - bool - True when Ollama is deliberately offline
+            status                          - str  - 'online' | 'offline' | 'unavailable'
+            message                         - str  - human-readable explanation
+    """
+    import subprocess
+    import requests
+
+    # 1. Verify the Ollama CLI can talk to the local server
     try:
-        socket.create_connection(("8.8.8.8", 53), timeout=3)
-        return {'connected': True, 'error': None}
-    except OSError:
-        return {'connected': False, 'error': 'No internet connection detected'}
+        cli_result = subprocess.run(
+            ['ollama', 'list'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if cli_result.returncode != 0:
+            return {
+                'ollama_connected_to_internet': False,
+                'airplane_mode': False,
+                'status': 'unavailable',
+                'message': 'Ollama service not reachable - cannot determine internet/airplane status'
+            }
+    except FileNotFoundError:
+        return {
+            'ollama_connected_to_internet': False,
+            'airplane_mode': False,
+            'status': 'unavailable',
+            'message': 'Ollama CLI not found - cannot check internet/airplane mode'
+        }
+
+    # 2. Query Ollama’s local HTTP API
+    try:
+        resp = requests.get(
+            "http://localhost:11434/api/tags",
+            timeout=3
+        )
+        # 200 → server is up and NOT in airplane mode
+        if resp.status_code == 200:
+            return {
+                'ollama_connected_to_internet': True,
+                'airplane_mode': False,
+                'status': 'online',
+                'message': 'Ollama is online and can reach the internet'
+            }
+
+        # Non-200 – look for the airplane/offline hint
+        try:
+            data = resp.json()
+            err = data.get("error", "").lower()
+            if "airplane" in err or "offline" in err:
+                return {
+                    'ollama_connected_to_internet': False,
+                    'airplane_mode': True,
+                    'status': 'offline',
+                    'message': 'Ollama is in airplane/offline mode (desired state)'
+                }
+        except Exception:
+            pass
+
+        return {
+            'ollama_connected_to_internet': False,
+            'airplane_mode': False,
+            'status': 'unavailable',
+            'message': f'Ollama API returned {resp.status_code} - unknown state'
+        }
+
+    except requests.exceptions.ConnectionError:
+        # The local API is unreachable → most likely airplane mode
+        return {
+            'ollama_connected_to_internet': False,
+            'airplane_mode': True,
+            'status': 'offline',
+            'message': 'Cannot reach Ollama API (localhost:11434) - airplane/offline mode active'
+        }
+    except requests.exceptions.Timeout:
+        return {
+            'ollama_connected_to_internet': False,
+            'airplane_mode': True,
+            'status': 'offline',
+            'message': 'Ollama API timeout - treated as airplane/offline mode'
+        }
+    except Exception as e:
+        return {
+            'ollama_connected_to_internet': False,
+            'airplane_mode': False,
+            'status': 'unavailable',
+            'message': f'Unexpected error while checking Ollama internet: {str(e)}'
+        }
 
 
 def check_machine_meets_requirements(required_specs):

@@ -1,10 +1,27 @@
+import os
+import sys
+import json
+import socket
 import platform
 import psutil
-import socket
-import json
-import time
-from utils.utils_uuid import derive_uuid
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Set project root and change working directory
+# ─────────────────────────────────────────────────────────────────────────────
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+os.chdir(PROJECT_ROOT)
+
+try:
+    from utils.utils_uuid import derive_uuid
+    from config.config import FULL_DATABASE_FILE_PATH
+except ImportError as e:
+    print(f"ERROR: Failed to import required modules: {str(e)}")
+    sys.exit(1)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Functions to get metadata
+# ─────────────────────────────────────────────────────────────────────────────
 
 def get_hostname():
     hostname = socket.gethostname()
@@ -14,7 +31,7 @@ def get_hostname():
 def get_system_specs():
     """
     Retrieve system specifications including machine name, OS, CPU, cores, GPU availability,
-    hard drive space, CPU utilization, and processor information.
+    hard drive space, CPU utilization, processor information, and **Python version**.
     Returns a JSON-compatible dictionary.
     """
     try:
@@ -35,6 +52,16 @@ def get_system_specs():
             "full_name": platform.platform()
         }
 
+        # Python version
+        specs["python"] = {
+            "version": platform.python_version(),
+            "version_tuple": sys.version_info[:3],  # (major, minor, micro)
+            "implementation": platform.python_implementation(),
+            "executable": sys.executable,
+            "build": platform.python_build()[0],
+            "build_date": platform.python_build()[1]
+        }
+
         # CPU details
         specs["cpu"] = {
             "name": platform.processor(),
@@ -45,12 +72,11 @@ def get_system_specs():
         }
 
         # GPU availability (basic check)
-        # Note: Detailed GPU info requires libraries like GPUtil or pynvml
         specs["gpu_available"] = False  # Default to False
         try:
-            # Basic heuristic: Check if any process is using GPU-related libraries
             for proc in psutil.process_iter(['name']):
-                if 'nvidia' in proc.info['name'].lower() or 'cuda' in proc.info['name'].lower():
+                proc_name = proc.info['name'] or ""
+                if 'nvidia' in proc_name.lower() or 'cuda' in proc_name.lower():
                     specs["gpu_available"] = True
                     break
         except Exception:
@@ -96,4 +122,6 @@ def get_system_specs():
         return {"error": f"Failed to retrieve system specs: {str(e)}"}
 
 
-# print(json.dumps(get_system_specs(), indent=4))
+# Example usage:
+if __name__ == "__main__":
+    print(json.dumps(get_system_specs(), indent=4, default=str))
